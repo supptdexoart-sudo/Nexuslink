@@ -1,9 +1,11 @@
 import { GameEvent } from "../types";
 
 // Base URL for your backend API.
-// In a real application, this would be configured via environment variables.
-const BASE_API_URL = 'http://localhost:3000/api'; 
-// For production, this would be your deployed backend URL.
+// Dynamically set based on environment.
+const BASE_API_URL = 
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000/api'
+    : 'https://YOUR_DEPLOYED_BACKEND_URL/api'; // <--- !!! DŮLEŽITÉ: Zde musíte nahradit 'https://YOUR_DEPLOYED_BACKEND_URL/api' skutečnou URL vašeho nasazeného backendu !!!
 
 // Utility for fetching data with error handling
 const fetchData = async <T>(url: string, options?: RequestInit): Promise<T> => {
