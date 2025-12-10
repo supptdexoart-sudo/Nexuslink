@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { GameEvent, GameEventType, Stat } from '../types'; // Added Stat import
-import { Plus, Minus, SquarePen, Save } from 'lucide-react'; // Removed X
+import { Plus, Minus, SquarePen, Save, QrCode, Download } from 'lucide-react'; // Added QrCode, Download
 
 interface GeneratorProps {
   onSaveCard: (event: GameEvent) => void;
@@ -50,6 +51,34 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail }) => {
       ...prev,
       stats: (prev.stats || []).filter((_, i) => i !== index),
     }));
+  };
+
+  // QR Code URL based on ID
+  // Using a robust public API to generate the image without extra npm dependencies
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&margin=10&data=${encodeURIComponent(newEvent.id || 'NEXUS-LINK-PREVIEW')}`;
+
+  const downloadQrCode = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!newEvent.id) {
+        setFeedback({ message: 'Pro stažení QR kódu musíte zadat ID.', type: 'error' });
+        return;
+    }
+
+    try {
+        const response = await fetch(qrCodeUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `nexus-qr-${newEvent.id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Download failed', error);
+        setFeedback({ message: 'Nepodařilo se stáhnout QR kód.', type: 'error' });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,6 +144,31 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail }) => {
             className="w-full bg-zinc-900 border border-zinc-700 p-3 rounded-lg text-white font-mono uppercase focus:border-neon-blue outline-none"
             required
           />
+        </div>
+
+        {/* QR Code Generator Section */}
+        <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50">
+            <div className="flex items-center gap-2 mb-4 text-neon-blue">
+                <QrCode className="w-5 h-5" />
+                <h3 className="text-sm font-bold font-display tracking-widest uppercase">Digitální Identifikátor (QR)</h3>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="bg-white p-2 rounded-lg shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                    <img src={qrCodeUrl} alt="QR Code Preview" className="w-32 h-32 object-contain" />
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                    <p className="text-xs text-zinc-500 mb-3 font-mono leading-relaxed">
+                        Tento QR kód se generuje automaticky na základě ID. Stáhněte si ho, vytiskněte a nalepte na fyzický herní předmět. Po naskenování aplikace rozpozná ID: <span className="text-white font-bold">{newEvent.id || '...'}</span>
+                    </p>
+                    <button
+                        onClick={downloadQrCode}
+                        type="button"
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 hover:text-white text-zinc-300 rounded border border-zinc-600 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 mx-auto sm:mx-0 transition-colors"
+                    >
+                        <Download className="w-4 h-4" /> Stáhnout QR (PNG)
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div>

@@ -5,6 +5,8 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // DŮLEŽITÉ: Nastavení base na název repozitáře pro GitHub Pages
+  base: '/Nexuslink/',
   plugins: [react()],
   resolve: {
     alias: {

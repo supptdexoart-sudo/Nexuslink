@@ -5,7 +5,7 @@ import { GameEvent } from "../types";
 const BASE_API_URL = 
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000/api'
-    : 'https://YOUR_DEPLOYED_BACKEND_URL/api'; // <--- !!! DŮLEŽITÉ: Zde musíte nahradit 'https://YOUR_DEPLOYED_BACKEND_URL/api' skutečnou URL vašeho nasazeného backendu !!!
+    : 'https://nexus-backend-m492.onrender.com/api'; // <--- !!! DŮLEŽITÉ: Zde musíte nahradit 'https://YOUR_DEPLOYED_BACKEND_URL/api' skutečnou URL vašeho nasazeného backendu !!!
 
 // Utility for fetching data with error handling
 const fetchData = async <T>(url: string, options?: RequestInit): Promise<T> => {
