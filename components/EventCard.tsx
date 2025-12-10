@@ -1,8 +1,7 @@
 
-
-import React, { useEffect, useRef } from 'react';
+import React from 'react'; // Removed useEffect, useRef
 import { GameEvent, GameEventType } from '../types';
-import { Shield, MapPin, Skull, Zap, Box, Star, X, Check, Save, RefreshCw, Trash2 } from 'lucide-react';
+import { MapPin, Skull, Zap, Box, Star, X, Save, RefreshCw, Trash2 } from 'lucide-react'; // Removed Shield, Check
 
 interface EventCardProps {
   event: GameEvent;

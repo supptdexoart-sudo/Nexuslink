@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Scan, AlertCircle, Keyboard, Search } from 'lucide-react';
-import { GameEvent } from '../types';
+// Removed GameEvent import
+// import { GameEvent } from '../types'; 
 
 interface ScannerProps {
   onScanCode: (code: string) => void;

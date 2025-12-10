@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { GameEvent, GameEventType } from '../types';
-import { Plus, Minus, SquarePen, Save, X } from 'lucide-react';
+import { GameEvent, GameEventType, Stat } from '../types'; // Added Stat import
+import { Plus, Minus, SquarePen, Save } from 'lucide-react'; // Removed X
 
 interface GeneratorProps {
   onSaveCard: (event: GameEvent) => void;
@@ -26,9 +26,15 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail }) => {
     setNewEvent((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleStatChange = (index: number, field: keyof (typeof newEvent.stats)[0], value: string) => {
-    const updatedStats = newEvent.stats ? [...newEvent.stats] : [];
-    updatedStats[index] = { ...updatedStats[index], [field]: value };
+  // Corrected type for field parameter using Stat interface
+  const handleStatChange = (index: number, field: keyof Stat, value: string) => {
+    const updatedStats: Stat[] = newEvent.stats ? [...newEvent.stats] : [];
+    // Ensure the stat object exists before trying to update its properties
+    if (!updatedStats[index]) {
+      updatedStats[index] = { label: '', value: '' }; // Initialize if undefined
+    }
+    // Update the specific field of the stat object
+    updatedStats[index] = { ...(updatedStats[index] as Stat), [field]: value };
     setNewEvent((prev) => ({ ...prev, stats: updatedStats }));
   };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ScanLine, Database, Settings, AlertTriangle, X, LogOut, User, RefreshCw, Trash2, SquarePen } from 'lucide-react';
+import { ScanLine, Database, Settings, AlertTriangle, LogOut, User, RefreshCw, SquarePen } from 'lucide-react'; // Removed X, Trash2
 import Scanner from './components/Scanner';
 import EventCard from './components/EventCard';
 import LoginScreen from './components/LoginScreen';

@@ -5,16 +5,18 @@ export enum GameEventType {
   TRAP = 'TRAP'
 }
 
+export interface Stat {
+  label: string;
+  value: string | number;
+  icon?: string;
+}
+
 export interface GameEvent {
   id: string;
   type: GameEventType;
   title: string;
   description: string;
-  stats?: {
-    label: string;
-    value: string | number;
-    icon?: string;
-  }[];
+  stats?: Stat[]; // Use the new Stat interface
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
   flavorText?: string;
 }
