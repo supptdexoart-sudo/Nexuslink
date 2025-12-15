@@ -24,7 +24,7 @@ export const vibrate = (pattern: number | number[]) => {
   }
 };
 
-type SoundType = 'click' | 'scan' | 'error' | 'success' | 'heal' | 'damage' | 'message' | 'open';
+type SoundType = 'click' | 'scan' | 'error' | 'success' | 'heal' | 'damage' | 'message' | 'open' | 'siren';
 
 export const playSound = (type: SoundType) => {
   try {
@@ -134,6 +134,21 @@ export const playSound = (type: SoundType) => {
         gain.gain.linearRampToValueAtTime(0, now + 0.3);
         osc.start(now);
         osc.stop(now + 0.3);
+        break;
+
+      case 'siren': // Alarm Loop (3s duration logic needs to be handled by caller intervals, but this is one wail)
+        osc.type = 'sawtooth';
+        // Rising and falling pitch
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(800, now + 0.5);
+        osc.frequency.linearRampToValueAtTime(400, now + 1.0);
+        
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 1.0);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+        osc.start(now);
+        osc.stop(now + 1.2);
         break;
     }
   } catch (e) {
