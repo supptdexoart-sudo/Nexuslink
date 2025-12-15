@@ -4,7 +4,15 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    
+    <!-- Mobile Optimization Meta Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#050510" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-touch-fullscreen" content="yes" />
+
     <title>Nexus Game Companion</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -45,6 +53,9 @@
         background-color: #050510;
         color: #ffffff;
         overflow: hidden; /* Prevent pull-to-refresh on mobile */
+        overscroll-behavior: none; /* Disables standard scroll bounce */
+        touch-action: pan-x pan-y;
+        -webkit-tap-highlight-color: transparent; /* Removes tap highlight on mobile */
       }
       /* Hide scrollbar for clean UI */
       .no-scrollbar::-webkit-scrollbar {
@@ -53,6 +64,13 @@
       .no-scrollbar {
         -ms-overflow-style: none;
         scrollbar-width: none;
+      }
+      /* Safe area padding for notched phones (iPhone X+) */
+      .safe-area-top {
+        padding-top: env(safe-area-inset-top);
+      }
+      .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
       }
     </style>
 
@@ -70,11 +88,16 @@
     "path": "https://esm.sh/path@^0.12.7",
     "vite": "https://esm.sh/vite@^7.2.7",
     "url": "https://esm.sh/url@^0.11.4",
-    "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+    "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
+    "dotenv": "https://esm.sh/dotenv@^17.2.3",
+    "express": "https://esm.sh/express@^5.2.1",
+    "cors": "https://esm.sh/cors@^2.8.5",
+    "mongoose": "https://esm.sh/mongoose@^9.0.1",
+    "body-parser": "https://esm.sh/body-parser@^2.2.1"
   }
 }
 </script>
-  <script type="module" crossorigin src="/Nexuslink/assets/index-BXkMSaJy.js"></script>
+  <script type="module" crossorigin src="/Nexuslink/assets/index-CP7vHS0S.js"></script>
 </head>
   <body>
     <div id="root"></div>
