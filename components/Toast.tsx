@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, CheckCircle, AlertTriangle, Gift, MessageSquare, X } from 'lucide-react';
 
 export type ToastType = 'info' | 'success' | 'error' | 'gift' | 'message';
