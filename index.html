@@ -4,6 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="manifest" href="/Nexuslink/manifest.json" />
     
     <!-- Mobile Optimization Meta Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -97,9 +98,18 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/Nexuslink/assets/index-5c2gFDM2.js"></script>
+  <script type="module" crossorigin src="/Nexuslink/assets/index-ClH4V2ix.js"></script>
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker registered', reg))
+            .catch(err => console.log('Service Worker registration failed', err));
+        });
+      }
+    </script>
 </body>
 </html>
