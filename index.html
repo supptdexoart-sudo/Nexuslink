@@ -74,8 +74,6 @@
         padding-bottom: env(safe-area-inset-bottom);
       }
     </style>
-
-<link rel="stylesheet" href="/index.css">
   <script type="importmap">
 {
   "imports": {
@@ -98,18 +96,8 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/Nexuslink/assets/index-9bgZbTDn.js"></script>
 </head>
   <body>
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('Service Worker registered', reg))
-            .catch(err => console.log('Service Worker registration failed', err));
-        });
-      }
-    </script>
-</body>
+  </body>
 </html>
