@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Server, Wifi, RefreshCw, Radio, PowerOff, ShieldCheck } from 'lucide-react';
+import { Server, RefreshCw, PowerOff, ShieldCheck } from 'lucide-react';
 import * as apiService from '../services/apiService';
 
 interface ServerLoaderProps {

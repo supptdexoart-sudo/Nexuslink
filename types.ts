@@ -25,6 +25,8 @@ export interface Stat {
 export interface MerchantItemEntry {
   id: string;
   stock: number;
+  price?: number; // Cena za kterou hráč nakupuje
+  sellPrice?: number; // Cena za kterou hráč prodává (výkupní cena)
 }
 
 export interface DilemmaOption {
@@ -41,6 +43,14 @@ export interface BossPhase {
     name: string;
     description: string;
     damageBonus: number; // Extra damage this turn/phase
+}
+
+// NEW: Merchant Class Config
+export interface MerchantTradeConfig {
+    warriorDiscount: number; // % Discount for Warriors
+    clericDiscount: number; // % Discount for Clerics (on healing items)
+    mageDiscount: number; // % Discount for Mages (on consumables)
+    rogueStealChance: number; // % Chance to steal extra item
 }
 
 // NEW: Night Variant definition
@@ -72,11 +82,14 @@ export interface GameEvent {
   isConsumable?: boolean; 
   canBeSaved?: boolean;   
   price?: number; 
+  canSellToMerchant?: boolean; 
+  tradeConfig?: MerchantTradeConfig; // NEW: Config for merchant bonuses
+  dilemmaScope?: 'INDIVIDUAL' | 'GLOBAL'; 
   merchantItems?: MerchantItemEntry[];
   dilemmaOptions?: DilemmaOption[];
   bossPhases?: BossPhase[]; 
   timeVariant?: TimeVariant; 
-  classVariants?: Partial<Record<PlayerClass, ClassVariant>>; // NEW: Map of Class -> Variant
+  classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 
   qrCodeUrl?: string; 
 }
 

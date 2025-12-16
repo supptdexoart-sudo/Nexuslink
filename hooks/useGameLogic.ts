@@ -49,7 +49,8 @@ export const useGameLogic = () => {
   const [inventory, setInventory] = useState<GameEvent[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadingInventory, setLoadingInventory] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Unused state removed: const [isFullscreen, setIsFullscreen] = useState(false);
+  // Replaced with just returning the toggle function logic
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
   const [initialSyncComplete, setInitialSyncComplete] = useState(false);
   
@@ -64,6 +65,9 @@ export const useGameLogic = () => {
   const [isRaidScreenVisible, setIsRaidScreenVisible] = useState(false);
   const [showRaidIntro, setShowRaidIntro] = useState(false);
   const prevRaidActiveRef = useRef<boolean>(false);
+
+  // PWA Install Prompt State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   const [playerHp, setPlayerHp] = useState<number>(() => {
     const saved = localStorage.getItem('nexus_player_hp');
@@ -112,6 +116,16 @@ export const useGameLogic = () => {
   // --- UTILS ---
   const getAdjustedItem = useCallback((item: GameEvent, isNightMode: boolean, pClass: PlayerClass | null): GameEvent => {
       let newItem = { ...item };
+      
+      // Fix for Type mismatches (e.g. "Encounter" vs "SETKÁNÍ")
+      if (item.type) {
+         const typeStr = item.type.toUpperCase();
+         if (typeStr === 'ENCOUNTER') newItem.type = GameEventType.ENCOUNTER;
+         else if (typeStr === 'BOSS') newItem.type = GameEventType.BOSS;
+         else if (typeStr === 'TRAP' || typeStr === 'PAST') newItem.type = GameEventType.TRAP;
+         else if (typeStr === 'ITEM' || typeStr === 'PŘEDMĚT') newItem.type = GameEventType.ITEM;
+      }
+
       if (isNightMode && item.timeVariant && item.timeVariant.enabled) {
           newItem = {
               ...newItem,
@@ -163,6 +177,33 @@ export const useGameLogic = () => {
   useEffect(() => {
       if (isGuest) { setIsServerReady(true); }
   }, [isGuest]);
+
+  // --- PWA INSTALL PROMPT LISTENER ---
+  useEffect(() => {
+      const handler = (e: any) => {
+          // Prevent Chrome 67 and earlier from automatically showing the prompt
+          e.preventDefault();
+          // Stash the event so it can be triggered later.
+          setDeferredPrompt(e);
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+      return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = async () => {
+      if (!deferredPrompt) return;
+      // Show the install prompt
+      deferredPrompt.prompt();
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+      } else {
+          console.log('User dismissed the install prompt');
+      }
+      // We've used the prompt, and can't use it again, discard it
+      setDeferredPrompt(null);
+  };
 
   useEffect(() => {
     if (userEmail && !isGuest && !isAdmin) {
@@ -360,6 +401,10 @@ export const useGameLogic = () => {
       }
   };
 
+  const handleConsumeItem = async (id: string) => {
+      try { await performDelete(id); } catch (error) {}
+  };
+
   const handleLogin = (email: string) => { 
       localStorage.setItem('nexus_current_user', email); 
       setUserEmail(email); 
@@ -448,7 +493,8 @@ export const useGameLogic = () => {
     if (!userEmail) { alert("Pro skenování kódů se prosím přihlašte."); return; }
     if (scanError === code) return;
     try {
-      const localItem = inventory.find(i => i.id === code);
+      // 1. Check Local Inventory first (Case Insensitive for safety)
+      const localItem = inventory.find(i => i.id.toLowerCase() === code.toLowerCase());
       if (localItem) { 
           setScanError(null); 
           const itemToDisplay = getAdjustedItem(localItem, isNight, playerClass);
@@ -459,6 +505,7 @@ export const useGameLogic = () => {
       }
       if (isGuest) { setScanError(code); playSound('error'); return; }
       
+      // 2. Check User Inventory from Server
       let foundItem = await apiService.getCardById(userEmail, code);
       if (foundItem) { 
           setScanError(null); 
@@ -472,25 +519,36 @@ export const useGameLogic = () => {
           return; 
       }
       
+      // 3. Check Admin Inventory (Master DB)
       if (userEmail !== ADMIN_EMAIL) {
         try {
            let adminItem = await apiService.getCardById(ADMIN_EMAIL, code);
            if (adminItem) {
              setScanError(null);
              adminItem = getAdjustedItem(adminItem, isNight, playerClass);
-             if (adminItem.type === GameEventType.BOSS && roomState.isInRoom) { setCurrentEvent(adminItem); setIsAdminPreview(true); return; }
-             if (adminItem.type === GameEventType.ENCOUNTER && roomState.isInRoom) { setCurrentEvent(adminItem); setIsAdminPreview(true); return; }
-             if (adminItem.type === GameEventType.MERCHANT) { setActiveMerchant(adminItem); playSound('open'); return; }
-             if (adminItem.type === GameEventType.TRAP) {
-                 let isSimpleTrap = adminItem.type === GameEventType.TRAP;
+             
+             // --- FIX: Robust type checking (Encounter, SETKÁNÍ, etc.) ---
+             // Some items might be saved as "Encounter" or "SETKÁNÍ". We check all variants.
+             const typeStr = adminItem.type.toUpperCase();
+             const isBoss = typeStr === 'BOSS';
+             const isEncounter = typeStr === 'ENCOUNTER' || typeStr === 'SETKÁNÍ' || typeStr === 'SKIRMISH';
+             const isMerchant = typeStr === 'MERCHANT' || typeStr === 'OBCHODNÍK';
+             const isTrap = typeStr === 'TRAP' || typeStr === 'PAST' || typeStr === 'NÁSTRAHA';
+
+             if (isBoss) { setCurrentEvent(adminItem); setIsAdminPreview(true); return; }
+             if (isEncounter) { setCurrentEvent(adminItem); setIsAdminPreview(true); return; }
+             
+             if (isMerchant) { setActiveMerchant(adminItem); playSound('open'); return; }
+             
+             if (isTrap) {
                  let effectVal = 0;
-                 if (isSimpleTrap && adminItem.stats) {
+                 if (adminItem.stats) {
                      const dmgStat = adminItem.stats.find(s => ['DMG', 'POŠKOZENÍ', 'ÚTOK'].includes(s.label.toUpperCase()));
                      const hpStat = adminItem.stats.find(s => ['HP', 'ZDRAVÍ', 'HEALTH'].includes(s.label.toUpperCase()));
                      if (dmgStat) effectVal = -Math.abs(parseInt(String(dmgStat.value)));
                      else if (hpStat) effectVal = parseInt(String(hpStat.value));
                  }
-                 if (isSimpleTrap && effectVal !== 0) { setInstantEffectValue(effectVal); handleHpChange(effectVal); } else { setInstantEffectValue(null); }
+                 if (effectVal !== 0) { setInstantEffectValue(effectVal); handleHpChange(effectVal); } else { setInstantEffectValue(null); }
              } else { setInstantEffectValue(null); }
              setCurrentEvent(adminItem); setIsAdminPreview(true); return;
            }
@@ -630,7 +688,7 @@ export const useGameLogic = () => {
   const handleRefreshDatabase = async () => { setIsRefreshing(true); playSound('click'); await loadInventory(); setIsRefreshing(false); };
   const toggleFullscreen = async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else if (document.exitFullscreen) await document.exitFullscreen(); } catch (err) {} };
 
-  const isItemInInventory = currentEvent ? inventory.some(i => i.id === currentEvent.id) : false;
+  // Removed unused variable: const isItemInInventory
   const isScannerPaused = !!currentEvent || !!activeMerchant || !!scanError || !!friendRequestStatus || !!pendingGiftItem || isRaidScreenVisible || showRaidIntro;
 
   // --- RETURN OBJECT ---
@@ -641,20 +699,23 @@ export const useGameLogic = () => {
       currentEvent, setCurrentEvent, editingEvent, setEditingEvent,
       activeMerchant, setActiveMerchant, instantEffectValue,
       screenFlash, scanError, inventory, loadingInventory,
-      isRefreshing, isFullscreen, syncStatus,
+      isRefreshing, isFullscreen: false, // Returning hardcoded false as toggle is manual
+      toggleFullscreen, 
+      syncStatus,
       notification, setNotification, unreadMessagesCount,
       giftTarget, pendingGiftItem, giftTransferStatus, setPendingGiftItem,
       activeRaid, isRaidScreenVisible, setIsRaidScreenVisible, showRaidIntro,
       playerHp, playerGold, playerClass,
       roomState, isSoloMode,
       scanMode, friendRequestStatus, setFriendRequestStatus, isScannerPaused,
+      deferredPrompt, installApp, // Export PWA stuff
       
       // Handlers
       handleLogin, handleLogout, handleGameSetup, handleCreateRoom, handleJoinRoom, handleLeaveRoom,
       handleSendMessage, updateNickname, handleScanCode, handleSaveEvent, handleDeleteEvent, handleUseEvent,
       handleResolveDilemma, handleHpChange, handleGoldChange, handleBuyItem, handleStartRaid,
       handleInitiateGift, handleConfirmGift, cancelGiftMode, handleReceiveGift,
-      initiateFriendScan, handleEditEvent, closeEvent, handleRefreshDatabase, toggleFullscreen,
-      getAdjustedItem, handleRemoveLocalItem, ADMIN_EMAIL
+      initiateFriendScan, handleEditEvent, closeEvent, handleRefreshDatabase,
+      getAdjustedItem, handleRemoveLocalItem, handleConsumeItem, ADMIN_EMAIL
   };
 };

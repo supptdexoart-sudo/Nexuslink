@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Box, ShoppingBag, BookOpen, Crown, Coins, Ghost, RefreshCw, Loader2, Database, Gift, X, Moon, Sun, Eye } from 'lucide-react';
+import { Box, ShoppingBag, BookOpen, Crown, Ghost, RefreshCw, Loader2, Database, Gift, X, Moon, Sun, Eye } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface InventoryViewProps {
@@ -87,11 +87,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                 <h3 className="font-display font-bold text-sm leading-tight text-white mb-1 line-clamp-2">{event.title}</h3>
                                 <div className="flex justify-between items-end">
                                     <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">{event.type}</span>
-                                    {event.price && event.price > 0 && (
-                                        <span className="text-[10px] text-yellow-500 font-mono font-bold flex items-center gap-1 bg-black/50 px-1.5 rounded">
-                                            <Coins className="w-3 h-3" /> {event.price}
-                                        </span>
-                                    )}
+                                    {/* Price display removed from Inventory per request */}
                                 </div>
                             </div>
                         </motion.div>

@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cpu, Fingerprint, Activity, Zap, Binary, ShieldCheck, Scan } from 'lucide-react';
-import { playSound } from '../services/soundService';
+import { Cpu, Fingerprint, Activity, Binary, ShieldCheck, Scan, Power } from 'lucide-react';
+import { playSound, vibrate } from '../services/soundService';
 
 interface StartupBootProps {
   onComplete: () => void;
@@ -20,12 +20,25 @@ const bootLines = [
 ];
 
 const StartupBoot: React.FC<StartupBootProps> = ({ onComplete }) => {
+  const [isStarted, setIsStarted] = useState(false); // New state for user interaction
   const [lines, setLines] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<'init' | 'biometric' | 'complete'>('init');
+  
+  // Funkce pro spuštění systému (vynucená interakce uživatele)
+  const handleStartSystem = () => {
+      setIsStarted(true);
+      
+      // Spustíme sekvenci zvuků místo MP3 souboru, který chyběl
+      playSound('open');
+      setTimeout(() => playSound('scan'), 500);
+      setTimeout(() => playSound('scan'), 1000);
+  };
 
   useEffect(() => {
-    // 1. Initial Sound
+    if (!isStarted) return;
+
+    // 1. Initial Sound Effect
     playSound('click');
     
     // 2. Terminal Lines Animation
@@ -57,19 +70,69 @@ const StartupBoot: React.FC<StartupBootProps> = ({ onComplete }) => {
       clearInterval(lineInterval);
       clearInterval(progressInterval);
     };
-  }, []);
+  }, [isStarted]);
 
+  // Handling Phase Transitions
   useEffect(() => {
+    if (!isStarted) return;
+
     if (phase === 'biometric') {
         playSound('scan');
+        vibrate([50, 50, 50]);
         setTimeout(() => {
             setPhase('complete');
             playSound('success');
-            setTimeout(onComplete, 800); // Wait a bit after success before unmounting
-        }, 1500);
+            setTimeout(onComplete, 1200); // Wait a bit after success before unmounting
+        }, 2000);
     }
-  }, [phase, onComplete]);
+  }, [phase, onComplete, isStarted]);
 
+  // --- RENDER: POWER BUTTON SCREEN (Pokud ještě nebylo kliknuto) ---
+  if (!isStarted) {
+      return (
+        <div className="fixed inset-0 z-[9999] bg-zinc-950 flex items-center justify-center overflow-hidden">
+            {/* Background Ambience */}
+            <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-neon-blue/10 rounded-full blur-[100px] animate-pulse-slow" />
+                <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-neon-purple/10 rounded-full blur-[100px] animate-pulse-slow" />
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.05]"></div>
+            </div>
+
+            <motion.button
+                onClick={handleStartSystem}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="relative z-10 flex flex-col items-center gap-6 group"
+            >
+                <div className="relative">
+                    {/* Pulsing Rings */}
+                    <motion.div 
+                        animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="absolute inset-0 bg-neon-blue/30 rounded-full blur-md"
+                    />
+                    <motion.div 
+                        animate={{ scale: [1, 2], opacity: [0.3, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
+                        className="absolute inset-0 bg-neon-blue/20 rounded-full blur-md"
+                    />
+                    
+                    {/* Main Button */}
+                    <div className="w-24 h-24 bg-zinc-900 rounded-full border-2 border-neon-blue flex items-center justify-center shadow-[0_0_30px_rgba(0,243,255,0.4)] group-hover:shadow-[0_0_50px_rgba(0,243,255,0.6)] transition-all">
+                        <Power className="w-10 h-10 text-white group-hover:text-neon-blue transition-colors" />
+                    </div>
+                </div>
+                
+                <div className="text-center">
+                    <h1 className="text-xl font-display font-black tracking-[0.2em] text-white mb-2">NEXUS<span className="text-neon-blue">.OS</span></h1>
+                    <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest group-hover:text-neon-blue transition-colors">Klikněte pro inicializaci</p>
+                </div>
+            </motion.button>
+        </div>
+      );
+  }
+
+  // --- RENDER: BOOT SEQUENCE ---
   return (
     <motion.div 
       className="fixed inset-0 z-[9999] bg-zinc-950 text-neon-blue font-mono overflow-hidden flex flex-col items-center justify-center"

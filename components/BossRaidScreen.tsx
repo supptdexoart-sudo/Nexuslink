@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Skull, Sword, Shield, Clock, Target, Trophy, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Skull, Sword, Clock, Trophy } from 'lucide-react';
 import { RaidState } from '../types';
 import * as apiService from '../services/apiService';
 import { playSound, vibrate } from '../services/soundService';

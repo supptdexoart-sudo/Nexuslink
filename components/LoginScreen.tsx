@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, ShieldCheck, Cpu, AlertTriangle, Check, Loader2, WifiOff } from 'lucide-react';
+import { User, Lock, ArrowRight, ShieldCheck, Cpu, AlertTriangle, Check, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as apiService from '../services/apiService';
 import ServerLoader from './ServerLoader'; // Import ServerLoader

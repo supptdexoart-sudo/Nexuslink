@@ -108,8 +108,22 @@ const Scanner: React.FC<ScannerProps> = ({ onScanCode, inventoryCount, scanMode 
 
     setIsAutoScanning(true);
 
+    // Expanded formats for better compatibility
     const barcodeDetector = new (window as any).BarcodeDetector({
-        formats: ['qr_code', 'code_128', 'code_39']
+        formats: [
+            'qr_code', 
+            'code_128', 
+            'code_39', 
+            'ean_13', 
+            'ean_8', 
+            'upc_a', 
+            'upc_e', 
+            'data_matrix', 
+            'aztec', 
+            'pdf417',
+            'itf',
+            'codabar'
+        ]
     });
 
     scanIntervalRef.current = window.setInterval(async () => {
@@ -123,7 +137,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanCode, inventoryCount, scanMode 
                 handleDetectedCode(rawValue);
             }
         } catch (e) { }
-    }, 200); 
+    }, 150); // Slightly faster scan interval
   };
 
   const handleDetectedCode = (code: string) => {
@@ -295,10 +309,10 @@ const Scanner: React.FC<ScannerProps> = ({ onScanCode, inventoryCount, scanMode 
 
       <div className="p-4 bg-zinc-950 border-t border-zinc-900 safe-area-bottom text-center">
         <p className={`text-[10px] font-mono mb-1 ${scanMode === 'friend' ? 'text-neon-purple' : 'text-zinc-500'}`}>
-            {scanMode === 'friend' ? "NAMIŘTE KAMERU NA QR KÓD PŘÍTELE (V SYSTEM)" : "NAMIŘTE KAMERU NA QR KÓD KARTY"}
+            {scanMode === 'friend' ? "NAMIŘTE KAMERU NA QR KÓD PŘÍTELE (V SYSTEM)" : "NAMIŘTE KAMERU NA QR/ČÁROVÝ KÓD"}
         </p>
         <p className="text-[9px] text-zinc-700 font-mono">
-            {inventoryCount > 0 ? "DATABÁZE PŘIPOJENA" : "REŽIM OFFLINE"} • SYSTEM v0.6
+            {inventoryCount > 0 ? "DATABÁZE PŘIPOJENA" : "REŽIM OFFLINE"} • SYSTEM v0.6.3
         </p>
       </div>
     </div>

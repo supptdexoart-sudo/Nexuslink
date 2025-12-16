@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Siren, AlertTriangle, Skull } from 'lucide-react';
+import { Siren, AlertTriangle } from 'lucide-react';
 import { playSound, vibrate } from '../services/soundService';
 
 interface BossRaidIntroProps {

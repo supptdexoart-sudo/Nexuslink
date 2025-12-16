@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { ScanLine, Settings, Box, Layers, Heart, Coins, SquarePen, Cloud, CloudOff, UploadCloud, WifiOff, Check, Trash2, Loader2, AlertTriangle, Moon, Sun, Sword, Wand2, Footprints, Cross, ChevronUp, ChevronDown, User, LogOut, QrCode, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ScanLine, Settings, Box, Layers, Heart, Coins, SquarePen, Moon, Sun, Sword, Wand2, Footprints, Cross, ChevronUp, ChevronDown, User, LogOut, QrCode, AlertTriangle, Check, Trash2, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Scanner from './components/Scanner';
 import EventCard from './components/EventCard';
@@ -14,7 +14,7 @@ import BossRaidScreen from './components/BossRaidScreen';
 import BossRaidIntro from './components/BossRaidIntro'; 
 import ServerLoader from './components/ServerLoader'; 
 import InventoryView from './components/InventoryView'; 
-import StartupBoot from './components/StartupBoot'; // Import Boot Animation
+import StartupBoot from './components/StartupBoot'; 
 import { PlayerClass, GameEvent } from './types';
 import { useGameLogic, Tab } from './hooks/useGameLogic';
 
@@ -67,11 +67,11 @@ const App: React.FC = () => {
 
   // --- RENDERING HELPERS ---
   const SyncIndicator = () => {
-     if (logic.isGuest) return <div className="flex items-center gap-1 text-zinc-500"><WifiOff className="w-4 h-4" /><span className="text-[10px] font-mono">OFFLINE</span></div>;
-     if (logic.syncStatus === 'restoring') return <div className="flex items-center gap-1 text-yellow-500 animate-pulse"><UploadCloud className="w-4 h-4" /><span className="text-[10px] font-mono">OBNOVA</span></div>;
-     if (logic.syncStatus === 'offline') return <div className="flex items-center gap-1 text-red-500"><CloudOff className="w-4 h-4" /><span className="text-[10px] font-mono">ODPOJENO</span></div>;
+     if (logic.isGuest) return <div className="flex items-center gap-1 text-zinc-500"><Settings className="w-4 h-4" /><span className="text-[10px] font-mono">OFFLINE</span></div>;
+     if (logic.syncStatus === 'restoring') return <div className="flex items-center gap-1 text-yellow-500 animate-pulse"><Settings className="w-4 h-4" /><span className="text-[10px] font-mono">OBNOVA</span></div>;
+     if (logic.syncStatus === 'offline') return <div className="flex items-center gap-1 text-red-500"><Settings className="w-4 h-4" /><span className="text-[10px] font-mono">ODPOJENO</span></div>;
      if (logic.syncStatus === 'error') return <div className="flex items-center gap-1 text-red-500"><AlertTriangle className="w-4 h-4" /><span className="text-[10px] font-mono">CHYBA</span></div>;
-     return <div className="flex items-center gap-1 text-emerald-500"><Cloud className="w-4 h-4" /><span className="text-[10px] font-mono">ONLINE</span></div>;
+     return <div className="flex items-center gap-1 text-emerald-500"><Settings className="w-4 h-4" /><span className="text-[10px] font-mono">ONLINE</span></div>;
   };
 
   const handleItemClick = (event: GameEvent) => {
@@ -84,6 +84,11 @@ const App: React.FC = () => {
       } else {
           logic.setCurrentEvent(event);
       }
+  };
+
+  const handleSellItem = async (item: GameEvent, price: number) => {
+      logic.handleGoldChange(price);
+      await logic.handleConsumeItem(item.id);
   };
 
   // --- BOOT SEQUENCE ---
@@ -116,6 +121,19 @@ const App: React.FC = () => {
           )}
       </AnimatePresence>
 
+      {/* RAID SCREEN - ACTIVE COMBAT */}
+      <AnimatePresence>
+          {logic.isRaidScreenVisible && logic.activeRaid && (
+              <BossRaidScreen 
+                  roomId={logic.roomState.id}
+                  playerNickname={logic.roomState.nickname}
+                  raidState={logic.activeRaid}
+                  members={logic.roomState.members}
+                  onClose={() => logic.setIsRaidScreenVisible(false)}
+              />
+          )}
+      </AnimatePresence>
+
       {/* NOTIFICATIONS */}
       <AnimatePresence>
           {logic.notification && (
@@ -129,7 +147,7 @@ const App: React.FC = () => {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => logic.setShowTimeInfo(false)} className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
                   <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
                       <div className={`absolute top-0 left-0 right-0 h-1 ${logic.isNight ? 'bg-indigo-500' : 'bg-orange-500'}`}></div>
-                      <button onClick={() => logic.setShowTimeInfo(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X className="w-6 h-6"/></button>
+                      <button onClick={() => logic.setShowTimeInfo(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><LogOut className="w-6 h-6"/></button>
                       
                       <div className="flex items-center gap-4 mb-6">
                           <div className={`p-4 rounded-full ${logic.isNight ? 'bg-indigo-900/20 text-indigo-400 border border-indigo-500/50' : 'bg-orange-900/20 text-orange-400 border border-orange-500/50'}`}>
@@ -143,7 +161,7 @@ const App: React.FC = () => {
 
                       <div className="space-y-4 text-sm text-zinc-300 leading-relaxed">
                           <p>
-                              <strong className="text-white">Herní svět dýchá.</strong> Cyklus dne a noci se mění automaticky podle reálného času nebo vůle Admina.
+                              <strong className="text-white">Herní svět dýchá.</strong> Cyklus dne a noci se mění automaticky.
                           </p>
                           <div className="bg-black/50 p-3 rounded-lg border border-zinc-800">
                               <div className="flex items-center gap-2 mb-1">
@@ -177,7 +195,7 @@ const App: React.FC = () => {
                         {logic.giftTransferStatus === 'success' ? (
                             <div className="py-3 bg-green-500/20 border border-green-500 rounded-xl text-green-500 font-bold uppercase flex items-center justify-center gap-2"><Check className="w-5 h-5" /> Odesláno</div>
                         ) : (
-                            <button onClick={logic.handleConfirmGift} disabled={logic.giftTransferStatus === 'processing'} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold uppercase rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center justify-center gap-2 transition-all active:scale-95">{logic.giftTransferStatus === 'processing' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}{logic.giftTransferStatus === 'processing' ? "Mazání a Odesílání..." : "ODSTRANIT A ODESLAT"}</button>
+                            <button onClick={logic.handleConfirmGift} disabled={logic.giftTransferStatus === 'processing'} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold uppercase rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center justify-center gap-2 transition-all active:scale-95">{logic.giftTransferStatus === 'processing' ? "..." : <Trash2 className="w-5 h-5" />}{logic.giftTransferStatus === 'processing' ? "Mazání a Odesílání..." : "ODSTRANIT A ODESLAT"}</button>
                         )}
                         {logic.giftTransferStatus !== 'success' && logic.giftTransferStatus !== 'processing' && (<button onClick={() => logic.setPendingGiftItem(null)} className="w-full py-3 bg-zinc-800 text-zinc-400 font-bold uppercase rounded-xl hover:bg-zinc-700">Zpět</button>)}
                     </div>
@@ -279,7 +297,7 @@ const App: React.FC = () => {
                              <div className="w-14 h-14 bg-black rounded-full flex items-center justify-center border border-zinc-700 shadow-inner"><User className="w-6 h-6 text-neon-blue" /></div>
                              <div><p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Identita</p><p className="font-mono text-white text-lg">{logic.userEmail}</p>{!logic.isAdmin && logic.playerClass && (<p className="text-xs text-neon-blue font-bold uppercase mt-1">Role: {logic.playerClass}</p>)}</div>
                         </div>
-                        {!logic.isGuest && (
+                        {!logic.isGuest && !logic.isAdmin && (
                             <div className="mt-6 border-t border-zinc-800 pt-6 flex flex-col items-center">
                                 <div className="bg-white p-3 rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.1)] mb-4 relative group">
                                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=friend:${logic.userEmail}&color=000000`} alt="Osobní QR Kód" className="w-48 h-48 object-contain" />
@@ -288,6 +306,17 @@ const App: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* INSTALL PWA BUTTON */}
+                    {logic.deferredPrompt && (
+                        <button 
+                            onClick={logic.installApp} 
+                            className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white font-bold uppercase rounded-xl shadow-lg flex items-center justify-center gap-2 tracking-widest animate-pulse"
+                        >
+                            <Download className="w-5 h-5" /> Nainstalovat Aplikaci
+                        </button>
+                    )}
+
                     <button onClick={logic.handleLogout} className="w-full py-4 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-bold uppercase rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center justify-center gap-2 mt-auto tracking-widest"><LogOut className="w-5 h-5" /> Odhlásit se</button>
                 </div>
              </motion.div>
@@ -295,19 +324,40 @@ const App: React.FC = () => {
         </AnimatePresence>
       </main>
 
-      <AnimatePresence>
-          {logic.isRaidScreenVisible && logic.activeRaid && logic.roomState.id && !logic.showRaidIntro && (
-              <BossRaidScreen roomId={logic.roomState.id} playerNickname={logic.roomState.nickname} raidState={logic.activeRaid} members={logic.roomState.members} onClose={() => logic.setIsRaidScreenVisible(false)} />
-          )}
-      </AnimatePresence>
-
-      <nav className="flex-none h-24 bg-zinc-950/90 border-t border-zinc-800 backdrop-blur-lg flex justify-around items-center px-4 safe-area-bottom z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-        <div className={`w-full grid gap-4 h-full py-2 ${logic.isAdmin ? 'grid-cols-2' : 'grid-cols-3'}`}>
-            {!logic.isAdmin && <NavButton active={logic.activeTab === Tab.SCANNER} onClick={() => logic.setActiveTab(Tab.SCANNER)} icon={<ScanLine className="w-6 h-6" />} label="SKEN" />}
-            <NavButton active={logic.activeTab === Tab.INVENTORY} onClick={() => logic.setActiveTab(Tab.INVENTORY)} icon={<Box className="w-6 h-6" />} label="BATOH" />
-            {!logic.isAdmin && !logic.isGuest && <NavButton active={logic.activeTab === Tab.ROOM} onClick={() => logic.setActiveTab(Tab.ROOM)} icon={<Layers className="w-6 h-6" />} label={logic.isSoloMode ? "SOLO" : "MÍSTNOST"} badgeCount={logic.unreadMessagesCount} />}
-            {logic.isAdmin && <NavButton active={logic.activeTab === Tab.GENERATOR} onClick={() => logic.setActiveTab(Tab.GENERATOR)} icon={<SquarePen className="w-6 h-6" />} label="ADMIN" />}
-        </div>
+      <nav className="flex-none bg-black border-t border-zinc-800 p-2 safe-area-bottom z-40 relative">
+          <div className="flex justify-around items-center h-14">
+            {!logic.isAdmin && (
+                <NavButton 
+                  active={logic.activeTab === Tab.SCANNER} 
+                  onClick={() => logic.setActiveTab(Tab.SCANNER)} 
+                  icon={<ScanLine className="w-6 h-6" />} 
+                  label="SKEN" 
+                />
+            )}
+            <NavButton 
+              active={logic.activeTab === Tab.INVENTORY} 
+              onClick={() => logic.setActiveTab(Tab.INVENTORY)} 
+              icon={<Layers className="w-6 h-6" />} 
+              label="BATOH" 
+            />
+            {logic.isAdmin && (
+              <NavButton 
+                active={logic.activeTab === Tab.GENERATOR} 
+                onClick={() => logic.setActiveTab(Tab.GENERATOR)} 
+                icon={<SquarePen className="w-6 h-6" />} 
+                label="ADMIN" 
+              />
+            )}
+            {!logic.isAdmin && (
+                <NavButton 
+                  active={logic.activeTab === Tab.ROOM} 
+                  onClick={() => logic.setActiveTab(Tab.ROOM)} 
+                  icon={<Box className="w-6 h-6" />} 
+                  label="MÍSTNOST" 
+                  badgeCount={logic.unreadMessagesCount}
+                />
+            )}
+          </div>
       </nav>
 
       <AnimatePresence>
@@ -319,6 +369,7 @@ const App: React.FC = () => {
             onUse={() => logic.handleUseEvent(logic.currentEvent!)} 
             onDelete={() => logic.handleDeleteEvent(logic.currentEvent!.id)}
             onEdit={logic.isAdmin ? () => logic.handleEditEvent(logic.currentEvent!) : undefined}
+            onConsume={logic.handleConsumeItem}
             onResolveDilemma={logic.handleResolveDilemma}
             isSaved={logic.inventory.some(i => i.id === logic.currentEvent?.id)}
             isAdmin={logic.isAdmin}
@@ -327,11 +378,22 @@ const App: React.FC = () => {
             inventory={logic.inventory} 
             onPlayerDamage={logic.handleHpChange}
             onStartRaid={logic.handleStartRaid}
+            playerHp={logic.playerHp} 
           />
         )}
 
         {logic.activeMerchant && logic.userEmail && (
-            <MerchantScreen merchant={logic.activeMerchant} userGold={logic.playerGold} adminEmail={logic.ADMIN_EMAIL} onClose={() => logic.setActiveMerchant(null)} onBuy={logic.handleBuyItem} />
+            <MerchantScreen 
+                merchant={logic.activeMerchant} 
+                userGold={logic.playerGold} 
+                adminEmail={logic.ADMIN_EMAIL} 
+                inventory={logic.inventory}
+                playerClass={logic.playerClass} // Pass Player Class
+                onClose={() => logic.setActiveMerchant(null)} 
+                onBuy={logic.handleBuyItem} 
+                onSell={handleSellItem}
+                onAddFreeItem={logic.handleSaveEvent} // For Rogue steal mechanic
+            />
         )}
       </AnimatePresence>
     </div>

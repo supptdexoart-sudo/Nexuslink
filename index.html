@@ -4,6 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="manifest" href="/manifest.json" />
     
     <!-- Mobile Optimization Meta Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -99,6 +100,15 @@
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker registered', reg))
+            .catch(err => console.log('Service Worker registration failed', err));
+        });
+      }
+    </script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

@@ -1,0 +1,17 @@
+
+{
+  "name": "Nexus Game Companion",
+  "short_name": "Nexus",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050510",
+  "theme_color": "#050510",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ]
+}

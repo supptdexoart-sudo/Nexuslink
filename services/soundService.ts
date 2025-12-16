@@ -1,21 +1,31 @@
 
 // Web Audio API & Haptics Service
-// Generuje zvuky v reálném čase bez nutnosti externích souborů.
+// Advanced Procedural Sound Generation for Cyberpunk Aesthetic
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let noiseBuffer: AudioBuffer | null = null;
 
+// Inicializace audio kontextu
 const initAudio = () => {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.3; // Master volume
+    masterGain.gain.value = 0.4; // Master volume
     masterGain.connect(audioCtx.destination);
+    
+    // Vygenerovat bílý šum pro efekty (explosions, hits)
+    const bufferSize = audioCtx.sampleRate * 2; // 2 sekundy šumu
+    noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
   }
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
-  return { ctx: audioCtx, master: masterGain };
+  return { ctx: audioCtx, master: masterGain, noise: noiseBuffer };
 };
 
 export const vibrate = (pattern: number | number[]) => {
@@ -28,144 +38,250 @@ type SoundType = 'click' | 'scan' | 'error' | 'success' | 'heal' | 'damage' | 'm
 
 export const playSound = (type: SoundType) => {
   try {
-    const { ctx, master } = initAudio();
+    const { ctx, master, noise } = initAudio();
     if (!ctx || !master) return;
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(master);
 
     const now = ctx.currentTime;
 
     switch (type) {
-      case 'click': // Jemné UI kliknutí
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.05);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now);
-        osc.stop(now + 0.05);
+      case 'click': 
+        // High-tech "tick"
+        {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(master);
+            
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
+            
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            
+            osc.start(now);
+            osc.stop(now + 0.05);
+        }
         break;
 
-      case 'scan': // Sci-fi chirp pro skener
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(1200, now);
-        osc.frequency.exponentialRampToValueAtTime(2500, now + 0.1);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now);
-        osc.stop(now + 0.15);
+      case 'open':
+        // Sci-fi UI Open Swish
+        {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(master);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.15, now + 0.1);
+            gain.gain.linearRampToValueAtTime(0, now + 0.3);
+
+            osc.start(now);
+            osc.stop(now + 0.3);
+        }
         break;
 
-      case 'error': // Hluboký bzučák
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.linearRampToValueAtTime(100, now + 0.3);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-        osc.start(now);
-        osc.stop(now + 0.3);
+      case 'scan': 
+        // Data processing sound (computational chirps)
+        {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.connect(gain);
+            gain.connect(master);
+
+            // Rychlá modulace frekvence
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.setValueAtTime(1200, now + 0.05);
+            osc.frequency.setValueAtTime(600, now + 0.1);
+            osc.frequency.setValueAtTime(1500, now + 0.15);
+
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
         break;
 
-      case 'success': // Pozitivní akord (Arpeggio)
-        playTone(ctx, master, 523.25, now, 0.1, 'sine'); // C5
-        playTone(ctx, master, 659.25, now + 0.1, 0.1, 'sine'); // E5
-        playTone(ctx, master, 783.99, now + 0.2, 0.2, 'sine'); // G5
+      case 'error': 
+        // Access Denied / Critical Low Tone
+        {
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc1.type = 'sawtooth';
+            osc2.type = 'square';
+            
+            osc1.frequency.value = 150;
+            osc2.frequency.value = 145; // Dissonance
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(master);
+
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + 0.4);
+            osc2.stop(now + 0.4);
+        }
         break;
 
-      case 'heal': // Rostoucí harmonický zvuk
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.linearRampToValueAtTime(600, now + 1);
-        
-        // Tremolo efekt
-        const lfo = ctx.createOscillator();
-        lfo.frequency.value = 10;
-        const lfoGain = ctx.createGain();
-        lfoGain.gain.value = 500;
-        lfo.connect(lfoGain.gain);
-        
-        gain.gain.setValueAtTime(0.0, now);
-        gain.gain.linearRampToValueAtTime(0.2, now + 0.5);
-        gain.gain.linearRampToValueAtTime(0.0, now + 1);
-        
-        osc.start(now);
-        osc.stop(now + 1);
+      case 'success': 
+        // Positive Chord (Major Triad) with glissando
+        {
+            const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.value = freq;
+                
+                osc.connect(gain);
+                gain.connect(master);
+                
+                const startTime = now + (i * 0.05);
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.4);
+                
+                osc.start(startTime);
+                osc.stop(startTime + 0.5);
+            });
+        }
         break;
 
-      case 'damage': // Klesající drsný zvuk
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
-        
-        // Noise simulace (rychlá modulace)
-        const noiseLfo = ctx.createOscillator();
-        noiseLfo.type = 'square';
-        noiseLfo.frequency.value = 50;
-        noiseLfo.connect(gain.gain);
-        noiseLfo.start(now);
-        noiseLfo.stop(now + 0.5);
+      case 'heal': 
+        // Angelic Synth Swell
+        {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
 
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-        
-        osc.start(now);
-        osc.stop(now + 0.5);
+            osc.type = 'sine';
+            filter.type = 'lowpass';
+            filter.frequency.value = 1000;
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(master);
+
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(880, now + 1.5); // Rising pitch
+
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.2, now + 0.5);
+            gain.gain.linearRampToValueAtTime(0, now + 1.5);
+
+            osc.start(now);
+            osc.stop(now + 1.5);
+        }
         break;
 
-      case 'message': // Jemné cinknutí
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200, now);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-        osc.start(now);
-        osc.stop(now + 0.5);
+      case 'damage': 
+        // Heavy Impact (Noise + Low Thud)
+        {
+            // 1. Noise Burst (The Hit)
+            if (noise) {
+                const noiseSource = ctx.createBufferSource();
+                noiseSource.buffer = noise;
+                const noiseFilter = ctx.createBiquadFilter();
+                const noiseGain = ctx.createGain();
+
+                noiseFilter.type = 'lowpass';
+                noiseFilter.frequency.setValueAtTime(1000, now);
+                noiseFilter.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+
+                noiseSource.connect(noiseFilter);
+                noiseFilter.connect(noiseGain);
+                noiseGain.connect(master);
+
+                noiseGain.gain.setValueAtTime(0.5, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                noiseSource.start(now);
+                noiseSource.stop(now + 0.3);
+            }
+
+            // 2. Low Frequency Thud (The Body)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.connect(gain);
+            gain.connect(master);
+
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+            osc.start(now);
+            osc.stop(now + 0.3);
+        }
         break;
 
-      case 'open': // High-tech "whoosh"
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
-        gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(0.1, now + 0.1);
-        gain.gain.linearRampToValueAtTime(0, now + 0.3);
-        osc.start(now);
-        osc.stop(now + 0.3);
+      case 'message': 
+        // Notification Ping
+        {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.connect(gain);
+            gain.connect(master);
+
+            osc.frequency.setValueAtTime(880, now);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+            osc.start(now);
+            osc.stop(now + 0.3);
+        }
         break;
 
-      case 'siren': // Alarm Loop (3s duration logic needs to be handled by caller intervals, but this is one wail)
-        osc.type = 'sawtooth';
-        // Rising and falling pitch
-        osc.frequency.setValueAtTime(400, now);
-        osc.frequency.linearRampToValueAtTime(800, now + 0.5);
-        osc.frequency.linearRampToValueAtTime(400, now + 1.0);
-        
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.linearRampToValueAtTime(0.3, now + 1.0);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+      case 'siren': 
+        // Red Alert Alarm
+        {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            
+            // LFO for pitch modulation
+            const lfo = ctx.createOscillator();
+            lfo.type = 'triangle';
+            lfo.frequency.value = 4; // 4Hz modulation
+            const lfoGain = ctx.createGain();
+            lfoGain.gain.value = 200; // Modulation depth
 
-        osc.start(now);
-        osc.stop(now + 1.2);
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            
+            osc.connect(gain);
+            gain.connect(master);
+
+            osc.frequency.value = 600; // Base frequency
+
+            // Envelope
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.3, now + 0.2);
+            gain.gain.linearRampToValueAtTime(0.3, now + 1.2);
+            gain.gain.linearRampToValueAtTime(0, now + 1.5);
+
+            osc.start(now);
+            lfo.start(now);
+            osc.stop(now + 1.5);
+            lfo.stop(now + 1.5);
+        }
         break;
     }
   } catch (e) {
     console.error("Audio Playback Failed", e);
   }
-};
-
-// Helper pro success akord
-const playTone = (ctx: AudioContext, master: GainNode, freq: number, startTime: number, duration: number, type: OscillatorType = 'sine') => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    osc.connect(gain);
-    gain.connect(master);
-    gain.gain.setValueAtTime(0.05, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-    osc.start(startTime);
-    osc.stop(startTime + duration);
 };

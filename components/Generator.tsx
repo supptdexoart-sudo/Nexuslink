@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { GameEvent, GameEventType, Stat, DilemmaOption, BossPhase, PlayerClass } from '../types'; 
-import { Plus, Minus, Save, QrCode, Download, Share2, Coins, ShoppingBag, Package, X, RotateCcw, Split, Trash2, Backpack, Skull, Shield, Sword, Heart, Crown, Zap, Clock, Activity, Sun, Moon, Wand2, Footprints, Cross, Users } from 'lucide-react'; 
-import { playSound } from '../services/soundService';
+import { GameEvent, GameEventType, Stat, PlayerClass } from '../types'; 
+import { Plus, Minus, Save, QrCode, Download, Share2, X, RotateCcw, Trash2, Backpack, Moon, Users, Sun, MapPin, Swords } from 'lucide-react'; 
+import MerchantPanel from './generator/MerchantPanel';
+import DilemmaPanel from './generator/DilemmaPanel';
+import CombatPanel from './generator/CombatPanel';
 
 interface GeneratorProps {
   onSaveCard: (event: GameEvent) => void;
@@ -22,6 +24,15 @@ const initialEventState: GameEvent = {
   isConsumable: false,
   canBeSaved: true, 
   price: 0,
+  canSellToMerchant: false, // Default false
+  // Default Merchant Config
+  tradeConfig: {
+      warriorDiscount: 10,
+      clericDiscount: 45,
+      mageDiscount: 25,
+      rogueStealChance: 30
+  },
+  dilemmaScope: 'INDIVIDUAL',
   merchantItems: [],
   dilemmaOptions: [],
   bossPhases: [],
@@ -49,12 +60,8 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   const [newEvent, setNewEvent] = useState<GameEvent>(initialEventState);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' | null }>({ message: '', type: null });
 
-  // Merchant Inventory State
-  const [merchantInputId, setMerchantInputId] = useState('');
-  const [merchantInputStock, setMerchantInputStock] = useState<number>(1);
+  // Edit Mode Logic
   const [isEditingMode, setIsEditingMode] = useState(false);
-  
-  // Class Variant Editing State
   const [activeClassEdit, setActiveClassEdit] = useState<PlayerClass | null>(null);
 
   // Load initial data if provided (Edit Mode)
@@ -64,7 +71,16 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
           ...initialEventState, // Defaults
           ...initialData,       // Overrides
           dilemmaOptions: initialData.dilemmaOptions || [],
+          dilemmaScope: initialData.dilemmaScope || 'INDIVIDUAL',
           merchantItems: initialData.merchantItems || [],
+          canSellToMerchant: initialData.canSellToMerchant ?? false,
+          // Ensure tradeConfig is merged correctly with fallbacks
+          tradeConfig: {
+              warriorDiscount: initialData.tradeConfig?.warriorDiscount ?? initialEventState.tradeConfig!.warriorDiscount,
+              clericDiscount: initialData.tradeConfig?.clericDiscount ?? initialEventState.tradeConfig!.clericDiscount,
+              mageDiscount: initialData.tradeConfig?.mageDiscount ?? initialEventState.tradeConfig!.mageDiscount,
+              rogueStealChance: initialData.tradeConfig?.rogueStealChance ?? initialEventState.tradeConfig!.rogueStealChance
+          },
           stats: initialData.stats || [],
           bossPhases: initialData.bossPhases || [],
           timeVariant: initialData.timeVariant || { enabled: false, nightStats: [] },
@@ -82,9 +98,11 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   const handleReset = () => {
       setNewEvent(initialEventState);
       setIsEditingMode(false);
-      setMerchantInputId('');
-      setMerchantInputStock(1);
       if (onClearData) onClearData();
+  };
+
+  const updateEvent = (updates: Partial<GameEvent>) => {
+      setNewEvent(prev => ({ ...prev, ...updates }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -97,6 +115,7 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
      setNewEvent((prev) => ({ ...prev, [name]: checked }));
   };
 
+  // --- STATS LOGIC ---
   const handleStatChange = (index: number, field: keyof Stat, value: string) => {
     const updatedStats: Stat[] = newEvent.stats ? [...newEvent.stats] : [];
     if (!updatedStats[index]) {
@@ -104,6 +123,21 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
     }
     updatedStats[index] = { ...(updatedStats[index] as Stat), [field]: value };
     setNewEvent((prev) => ({ ...prev, stats: updatedStats }));
+  };
+
+  const setSpecificStat = (label: string, value: string) => {
+      setNewEvent(prev => {
+          const currentStats = prev.stats ? [...prev.stats] : [];
+          const filteredStats = currentStats.filter(s => s.label !== label);
+          if (value && value !== '0') {
+            filteredStats.unshift({ label, value });
+          }
+          return { ...prev, stats: filteredStats };
+      });
+  };
+
+  const getSpecificStatValue = (label: string): string => {
+      return newEvent.stats?.find(s => s.label === label)?.value.toString() || '';
   };
 
   const addStat = () => {
@@ -187,145 +221,21 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   };
 
   const addNightStat = () => {
-      setNewEvent(prev => ({
-          ...prev,
-          timeVariant: {
-              ...prev.timeVariant,
-              enabled: true,
-              nightStats: [...(prev.timeVariant?.nightStats || []), { label: '', value: '' }]
-          }
-      }));
+      const currentStats = newEvent.timeVariant?.nightStats || [];
+      updateTimeVariant('nightStats', [...currentStats, { label: '', value: '' }]);
   };
 
   const updateNightStat = (index: number, field: keyof Stat, value: string) => {
-      setNewEvent(prev => {
-          const stats = [...(prev.timeVariant?.nightStats || [])];
-          if(stats[index]) stats[index] = { ...stats[index], [field]: value };
-          return {
-              ...prev,
-              timeVariant: { ...prev.timeVariant, enabled: true, nightStats: stats }
-          };
-      });
+      const currentStats = [...(newEvent.timeVariant?.nightStats || [])];
+      if (currentStats[index]) {
+          currentStats[index] = { ...currentStats[index], [field]: value };
+      }
+      updateTimeVariant('nightStats', currentStats);
   };
 
   const removeNightStat = (index: number) => {
-      setNewEvent(prev => ({
-          ...prev,
-          timeVariant: {
-              ...prev.timeVariant,
-              enabled: true,
-              nightStats: (prev.timeVariant?.nightStats || []).filter((_, i) => i !== index)
-          }
-      }));
-  };
-
-
-  // --- ENCOUNTER/BOSS STATS HELPER ---
-  const updateCombatStat = (label: 'HP' | 'DEF' | 'ATK', value: string) => {
-      setNewEvent(prev => {
-          const currentStats = [...(prev.stats || [])];
-          const filteredStats = currentStats.filter(s => s.label.toUpperCase() !== label);
-          filteredStats.push({ label, value });
-          return { ...prev, stats: filteredStats };
-      });
-  };
-
-  const getCombatStatValue = (label: 'HP' | 'DEF' | 'ATK'): string => {
-      const stat = newEvent.stats?.find(s => s.label.toUpperCase() === label);
-      return stat ? String(stat.value) : '';
-  };
-
-  // --- MERCHANT INVENTORY LOGIC ---
-  const addMerchantItem = () => {
-      if(!merchantInputId.trim()) return;
-      setNewEvent(prev => ({
-          ...prev,
-          merchantItems: [...(prev.merchantItems || []), { 
-              id: merchantInputId.trim(), 
-              stock: Math.max(1, merchantInputStock) 
-          }]
-      }));
-      setMerchantInputId('');
-      setMerchantInputStock(1);
-  };
-
-  const removeMerchantItem = (index: number) => {
-      setNewEvent(prev => ({
-          ...prev,
-          merchantItems: (prev.merchantItems || []).filter((_, i) => i !== index)
-      }));
-  };
-
-  const updateMerchantItemStock = (index: number, newStock: number) => {
-      setNewEvent(prev => {
-          const items = [...(prev.merchantItems || [])];
-          if (items[index]) {
-              items[index] = { ...items[index], stock: Math.max(0, newStock) };
-          }
-          return { ...prev, merchantItems: items };
-      });
-  };
-
-  // --- DILEMMA LOGIC ---
-  const addDilemmaOption = () => {
-      setNewEvent(prev => ({
-          ...prev,
-          dilemmaOptions: [...(prev.dilemmaOptions || []), {
-              label: '',
-              consequenceText: '',
-              physicalInstruction: '',
-              effectType: 'none',
-              effectValue: 0
-          }]
-      }));
-  };
-
-  const removeDilemmaOption = (index: number) => {
-      setNewEvent(prev => ({
-          ...prev,
-          dilemmaOptions: (prev.dilemmaOptions || []).filter((_, i) => i !== index)
-      }));
-  };
-
-  const updateDilemmaOption = (index: number, field: keyof DilemmaOption, value: any) => {
-      setNewEvent(prev => {
-          const opts = [...(prev.dilemmaOptions || [])];
-          if(opts[index]) {
-              opts[index] = { ...opts[index], [field]: value };
-          }
-          return { ...prev, dilemmaOptions: opts };
-      });
-  };
-
-  // --- BOSS PHASES LOGIC ---
-  const addBossPhase = () => {
-      setNewEvent(prev => ({
-          ...prev,
-          bossPhases: [...(prev.bossPhases || []), {
-              triggerType: 'TURN',
-              triggerValue: 1,
-              name: '',
-              description: '',
-              damageBonus: 0
-          }]
-      }));
-  };
-
-  const removeBossPhase = (index: number) => {
-      setNewEvent(prev => ({
-          ...prev,
-          bossPhases: (prev.bossPhases || []).filter((_, i) => i !== index)
-      }));
-  };
-
-  const updateBossPhase = (index: number, field: keyof BossPhase, value: any) => {
-      setNewEvent(prev => {
-          const phases = [...(prev.bossPhases || [])];
-          if(phases[index]) {
-              phases[index] = { ...phases[index], [field]: value };
-          }
-          return { ...prev, bossPhases: phases };
-      });
+       const currentStats = (newEvent.timeVariant?.nightStats || []).filter((_, i) => i !== index);
+       updateTimeVariant('nightStats', currentStats);
   };
 
   // --- QR CODE GENERATION LOGIC ---
@@ -399,7 +309,9 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   const isMerchant = newEvent.type === GameEventType.MERCHANT;
   const isDilemma = newEvent.type === GameEventType.DILEMA;
   const isEncounter = newEvent.type === GameEventType.ENCOUNTER;
+  const isTrap = newEvent.type === GameEventType.TRAP;
   const isBoss = newEvent.type === GameEventType.BOSS;
+  const isLocation = newEvent.type === GameEventType.LOCATION;
 
   return (
     <div className="h-full overflow-y-auto p-6 pb-24 no-scrollbar">
@@ -504,15 +416,132 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
           </div>
         </div>
 
-        {/* --- DYNAMIC NIGHT TIME VARIANT SECTION --- */}
+        {/* --- MODULAR SECTIONS --- */}
+        
+        {isMerchant && <MerchantPanel event={newEvent} onUpdate={updateEvent} />}
+        
+        {isDilemma && <DilemmaPanel event={newEvent} onUpdate={updateEvent} />}
+        
+        {(isBoss || isEncounter || isTrap) && <CombatPanel event={newEvent} onUpdate={updateEvent} />}
+
+        {/* --- LOCATION CONFIG --- */}
+        {isLocation && (
+             <div className="bg-gradient-to-br from-emerald-900/30 to-black border border-emerald-700 rounded-xl p-5 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+                 <div className="flex items-center gap-3 mb-4 text-emerald-500 border-b border-emerald-900/50 pb-2">
+                     <MapPin className="w-6 h-6" />
+                     <h3 className="font-display font-bold uppercase tracking-widest">Parametry Lokace</h3>
+                 </div>
+                 
+                 <div className="space-y-4">
+                     <div>
+                         <label className="text-xs font-bold text-zinc-500 uppercase block mb-1">Úroveň Nebezpečí</label>
+                         <div className="flex gap-2">
+                             {['BEZPEČNÁ', 'NEBEZPEČNÁ', 'SMRTÍCÍ'].map(lvl => (
+                                 <button 
+                                    key={lvl}
+                                    type="button"
+                                    onClick={() => setSpecificStat('NEBEZPEČÍ', lvl)}
+                                    className={`flex-1 py-2 text-xs font-bold border rounded ${getSpecificStatValue('NEBEZPEČÍ') === lvl ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-zinc-900 text-zinc-500 border-zinc-700'}`}
+                                 >
+                                     {lvl}
+                                 </button>
+                             ))}
+                         </div>
+                     </div>
+                     
+                     <div>
+                         <label className="text-xs font-bold text-zinc-500 uppercase block mb-1">Dostupná Akce</label>
+                         <input 
+                            placeholder="Např. PROHLEDAT, ODPOČÍVAT" 
+                            value={getSpecificStatValue('AKCE')}
+                            onChange={(e) => setSpecificStat('AKCE', e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-white font-mono uppercase"
+                         />
+                     </div>
+                 </div>
+             </div>
+        )}
+
+        {/* --- GLOBAL SETTINGS (CONSUMABLE / SHAREABLE) --- */}
+        {!isMerchant && !isDilemma && !isEncounter && !isTrap && !isBoss && !isLocation && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-zinc-900/50 border border-zinc-800 p-3 rounded-lg flex flex-col gap-3 justify-center">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white flex items-center gap-1"><Trash2 className="w-3 h-3 text-red-500"/> Jednorázové?</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="isConsumable" className="sr-only peer" checked={newEvent.isConsumable ?? false} onChange={handleCheckboxChange}/>
+                            <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+                        </label>
+                    </div>
+                    {newEvent.isConsumable && (
+                         <div className="flex items-center justify-between animate-in fade-in slide-in-from-top-2 pt-2 border-t border-zinc-800">
+                             <div><span className="text-xs font-bold text-white flex items-center gap-1"><Backpack className="w-3 h-3 text-neon-blue"/> Povolit Uložení?</span></div>
+                             <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
+                                 <input type="checkbox" name="canBeSaved" className="sr-only peer" checked={newEvent.canBeSaved ?? true} onChange={handleCheckboxChange}/>
+                                 <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neon-blue"></div>
+                             </label>
+                         </div>
+                    )}
+                </div>
+
+                <div className="bg-zinc-900/50 border border-zinc-800 p-3 rounded-lg flex items-center justify-between">
+                    <div><h4 className="text-sm font-bold text-white flex items-center gap-2"><Share2 className="w-4 h-4 text-neon-green" /> Povolit Sdílení</h4></div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="isShareable" className="sr-only peer" checked={newEvent.isShareable ?? true} onChange={handleCheckboxChange}/>
+                        <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
+                    </label>
+                </div>
+            </div>
+        )}
+
+        {/* --- GLOBAL STATS -> RENAMED TO "DEN" --- */}
+        {!isDilemma && !isMerchant && !isEncounter && !isTrap && !isBoss && !isLocation && (
+            <div className="space-y-4 border border-zinc-800 rounded-lg p-4 bg-orange-950/10">
+                <div className="flex items-center gap-2 mb-2 border-b border-orange-500/20 pb-2">
+                    <Sun className="w-6 h-6 text-orange-500" />
+                    <div>
+                        <h3 className="text-lg font-display font-bold text-orange-200 uppercase tracking-widest">DEN</h3>
+                        <p className="text-[10px] text-orange-400/60">Základní statistiky a vlastnosti (Výchozí stav).</p>
+                    </div>
+                </div>
+                {(newEvent.stats || []).map((stat, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                    <input type="text" value={stat.label} onChange={(e) => handleStatChange(index, 'label', e.target.value)} placeholder="Popisek" className="flex-1 bg-black/50 border border-orange-500/30 p-2 rounded text-white text-xs uppercase font-mono outline-none"/>
+                    <input type="text" value={stat.value} onChange={(e) => handleStatChange(index, 'value', e.target.value)} placeholder="Hodnota" className="flex-1 bg-black/50 border border-orange-500/30 p-2 rounded text-white text-xs font-mono outline-none"/>
+                    <button type="button" onClick={() => removeStat(index)} className="p-2 bg-red-900/20 text-red-400 rounded-full hover:bg-red-900/40 transition-colors"><Minus className="w-4 h-4" /></button>
+                    </div>
+                ))}
+                <button type="button" onClick={addStat} className="w-full flex items-center justify-center gap-2 py-2 bg-orange-900/30 hover:bg-orange-800/50 text-orange-300 rounded-lg font-bold text-sm transition-colors border border-orange-500/20"><Plus className="w-4 h-4" /> Přidat statistiku</button>
+            </div>
+        )}
+        
+        {/* Extra Stats for Encounter/Trap to handle edge cases or additional info */}
+        {(isEncounter || isTrap || isBoss || isLocation) && (
+             <div className="mt-4 border-t border-zinc-800 pt-4">
+                 <h4 className="text-xs font-bold text-zinc-500 uppercase mb-2">Dodatečné Vlastnosti</h4>
+                 {(newEvent.stats || []).filter(s => !['HP', 'ATK', 'DEF', 'NEBEZPEČÍ', 'AKCE'].includes(s.label)).map((stat, index) => {
+                     // Find real index to update correct item
+                     const realIndex = newEvent.stats!.findIndex(s => s === stat);
+                     return (
+                        <div key={index} className="flex items-center gap-2 mb-2">
+                            <input type="text" value={stat.label} onChange={(e) => handleStatChange(realIndex, 'label', e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 p-2 rounded text-white text-xs"/>
+                            <input type="text" value={stat.value} onChange={(e) => handleStatChange(realIndex, 'value', e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 p-2 rounded text-white text-xs"/>
+                            <button type="button" onClick={() => removeStat(realIndex)} className="text-red-500"><Minus className="w-4 h-4"/></button>
+                        </div>
+                     );
+                 })}
+                 <button type="button" onClick={addStat} className="text-xs text-neon-blue font-bold flex items-center gap-1">+ Přidat Speciální Vlastnost</button>
+             </div>
+        )}
+
+        {/* --- DYNAMIC NIGHT TIME VARIANT SECTION -> RENAMED TO "NOC" --- */}
         <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/20 border border-indigo-500/50 rounded-lg p-4 mt-6">
-            {/* ... (Existing Night Time UI) ... */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                    <Moon className="w-5 h-5 text-indigo-400" />
+                    <Moon className="w-6 h-6 text-indigo-400" />
                     <div>
-                        <h4 className="text-sm font-bold text-indigo-200 uppercase tracking-wide">Dynamická Mutace (Den/Noc)</h4>
-                        <p className="text-[10px] text-indigo-300/60">Pokud je aktivní, karta se v noci změní.</p>
+                        <h4 className="text-lg font-display font-bold text-indigo-200 uppercase tracking-widest">NOC</h4>
+                        <p className="text-[10px] text-indigo-300/60">Mutace statistik v nočním cyklu.</p>
                     </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -530,12 +559,40 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                         <label className="text-xs font-bold text-indigo-300 uppercase tracking-widest">Popis (Noc)</label>
                         <textarea rows={2} value={newEvent.timeVariant.nightDescription || ''} onChange={(e) => updateTimeVariant('nightDescription', e.target.value)} className="w-full bg-black/50 border border-indigo-500/30 p-2 rounded text-zinc-300 text-xs focus:border-indigo-400 outline-none"/>
                     </div>
-                    {/* ... stats ... */}
+                    
+                    {/* NIGHT STATS - OVERRIDES */}
+                    <div className="mt-3 pt-3 border-t border-indigo-500/30">
+                        <label className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Swords className="w-4 h-4"/> Noční Statistiky (Přepíší denní)
+                        </label>
+                        <p className="text-[10px] text-indigo-400/60 mb-3">
+                            Zde definujte jiné HP, Útok nebo bonusy platné pouze v noci.
+                        </p>
+
+                        {(newEvent.timeVariant.nightStats || []).map((stat, idx) => (
+                            <div key={idx} className="flex gap-2 mb-2">
+                                <input 
+                                    placeholder="Typ (HP/ATK)" 
+                                    value={stat.label} 
+                                    onChange={(e) => updateNightStat(idx, 'label', e.target.value)}
+                                    className="w-1/3 bg-black/50 border border-indigo-500/30 p-2 rounded text-white text-xs uppercase"
+                                />
+                                <input 
+                                    placeholder="Hodnota" 
+                                    value={stat.value} 
+                                    onChange={(e) => updateNightStat(idx, 'value', e.target.value)}
+                                    className="flex-1 bg-black/50 border border-indigo-500/30 p-2 rounded text-white text-xs font-mono"
+                                />
+                                <button type="button" onClick={() => removeNightStat(idx)} className="text-red-400 hover:text-white bg-red-900/20 p-2 rounded"><X className="w-4 h-4"/></button>
+                            </div>
+                        ))}
+                        <button type="button" onClick={addNightStat} className="text-xs bg-indigo-900/40 hover:bg-indigo-800 text-indigo-200 px-3 py-2 rounded flex items-center gap-1 border border-indigo-500/30 transition-colors">+ Přidat Noční Stat</button>
+                    </div>
                 </div>
             )}
         </div>
 
-        {/* --- CLASS SPECIFIC VARIANTS (NEW) --- */}
+        {/* --- CLASS SPECIFIC VARIANTS --- */}
         <div className="bg-gradient-to-br from-orange-900/30 to-red-900/20 border border-orange-500/50 rounded-lg p-4 mt-6">
             <div className="flex items-center gap-2 mb-4 text-orange-400">
                 <Users className="w-5 h-5" />
@@ -615,65 +672,6 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                 </div>
             )}
         </div>
-
-        {/* ... (Rest of the form - Price, Consumable, Shareable, Dilemma, etc.) ... */}
-        {/* Keeping existing conditional blocks for Price/Consumable, Dilemma, Merchant, Boss */}
-        {!isMerchant && !isDilemma && !isEncounter && !isBoss && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="price" className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                      <Coins className="w-3 h-3" /> Cena (Kredity)
-                  </label>
-                  <input type="number" name="price" value={newEvent.price || 0} onChange={handleChange} placeholder="0" className="w-full bg-zinc-900 border border-zinc-700 p-3 rounded-lg text-yellow-500 font-mono font-bold focus:border-yellow-500 outline-none"/>
-                </div>
-                
-                <div className="bg-zinc-900/50 border border-zinc-800 p-3 rounded-lg flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white flex items-center gap-1"><Trash2 className="w-3 h-3 text-red-500"/> Jednorázové?</span>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" name="isConsumable" className="sr-only peer" checked={newEvent.isConsumable ?? false} onChange={handleCheckboxChange}/>
-                            <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
-                        </label>
-                    </div>
-                    {newEvent.isConsumable && (
-                         <div className="flex items-center justify-between animate-in fade-in slide-in-from-top-2 pt-2 border-t border-zinc-800">
-                             <div><span className="text-xs font-bold text-white flex items-center gap-1"><Backpack className="w-3 h-3 text-neon-blue"/> Povolit Uložení?</span></div>
-                             <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
-                                 <input type="checkbox" name="canBeSaved" className="sr-only peer" checked={newEvent.canBeSaved ?? true} onChange={handleCheckboxChange}/>
-                                 <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neon-blue"></div>
-                             </label>
-                         </div>
-                    )}
-                </div>
-            </div>
-        )}
-
-        {/* ... (Shareable Toggle) ... */}
-        {!isDilemma && !isEncounter && !isBoss && (
-            <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg flex items-center justify-between">
-                <div><h4 className="text-sm font-bold text-white flex items-center gap-2"><Share2 className="w-4 h-4 text-neon-green" /> Povolit Sdílení</h4></div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" name="isShareable" className="sr-only peer" checked={newEvent.isShareable ?? true} onChange={handleCheckboxChange}/>
-                    <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
-                </label>
-            </div>
-        )}
-
-        {/* ... (Existing conditional renders for Dilemma, Merchant, Boss, Encounter, Stats) ... */}
-        {/* Just keeping the generic stats block here as a fallback/standard */}
-        {!isDilemma && !isMerchant && !isBoss && !isEncounter && (
-            <div className="space-y-4 border border-zinc-800 rounded-lg p-4">
-            <h3 className="text-lg font-display font-bold text-white mb-2">Statistiky Aktiva</h3>
-            {(newEvent.stats || []).map((stat, index) => (
-                <div key={index} className="flex items-center gap-2">
-                <input type="text" value={stat.label} onChange={(e) => handleStatChange(index, 'label', e.target.value)} placeholder="Popisek" className="flex-1 bg-zinc-800 border border-zinc-700 p-2 rounded text-white text-xs uppercase font-mono outline-none"/>
-                <input type="text" value={stat.value} onChange={(e) => handleStatChange(index, 'value', e.target.value)} placeholder="Hodnota" className="flex-1 bg-zinc-800 border border-zinc-700 p-2 rounded text-white text-xs font-mono outline-none"/>
-                <button type="button" onClick={() => removeStat(index)} className="p-2 bg-red-900/20 text-red-400 rounded-full hover:bg-red-900/40 transition-colors"><Minus className="w-4 h-4" /></button>
-                </div>
-            ))}
-            <button type="button" onClick={addStat} className="w-full flex items-center justify-center gap-2 py-2 bg-zinc-800 hover:bg-zinc-700 text-neon-blue rounded-lg font-bold text-sm transition-colors"><Plus className="w-4 h-4" /> Přidat statistiku</button>
-            </div>
-        )}
 
         <button
           type="submit"

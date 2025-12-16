@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Hash, ArrowRight, Gamepad2, Loader2, Users, Sword, Wand2, Footprints, Cross, Shield, Lock, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { User, Hash, ArrowRight, Gamepad2, Loader2, Users, Sword, Wand2, Footprints, Cross, Lock, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { PlayerClass } from '../types';
 
