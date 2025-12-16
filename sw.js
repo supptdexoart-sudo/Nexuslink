@@ -1,6 +1,6 @@
 
 // Service Worker pro Nexus Game Companion
-const CACHE_NAME = 'nexus-cache-v2'; // Incremented version to force update
+const CACHE_NAME = 'nexus-cache-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
