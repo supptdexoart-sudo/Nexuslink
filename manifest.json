@@ -8,7 +8,7 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "vite.svg",
+      "src": "./vite.svg",
       "type": "image/svg+xml",
       "sizes": "512x512"
     }
