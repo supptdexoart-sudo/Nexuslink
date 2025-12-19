@@ -2,11 +2,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Scan, Sun, Moon, Heart, Zap, 
+  Sun, Heart, Zap, 
   Users, ArrowLeft,
-  Info, Activity,
-  Sword, Wand2, Footprints, Cross, ShieldAlert,
-  Smartphone
+  Activity, Coins, Shield, Star, Wind,
+  Smartphone, Database, Hammer, ShieldAlert
 } from 'lucide-react';
 
 interface ManualViewProps {
@@ -19,14 +18,14 @@ const ManualSection: React.FC<{
   children: React.ReactNode,
   color: string 
 }> = ({ icon, title, children, color }) => (
-  <div className="mb-8 group">
-    <div className="flex items-center gap-3 mb-3 border-b border-zinc-800 pb-2">
-      <div className={`${color} p-2 bg-zinc-900 rounded-lg group-hover:scale-110 transition-transform`}>
+  <div className="mb-10 group animate-in fade-in slide-in-from-right-4 duration-500">
+    <div className="flex items-center gap-3 mb-4 border-b border-zinc-800 pb-2">
+      <div className={`${color} p-2.5 bg-zinc-900 rounded-xl group-hover:scale-110 transition-transform shadow-lg shadow-black/50`}>
         {icon}
       </div>
-      <h3 className="font-display font-bold uppercase tracking-widest text-white">{title}</h3>
+      <h3 className="font-display font-black uppercase tracking-widest text-white text-base">{title}</h3>
     </div>
-    <div className="pl-12 text-sm text-zinc-400 leading-relaxed space-y-2">
+    <div className="pl-2 text-sm text-zinc-400 leading-relaxed space-y-3">
       {children}
     </div>
   </div>
@@ -40,112 +39,122 @@ const ManualView: React.FC<ManualViewProps> = ({ onBack }) => {
       exit={{ opacity: 0, x: 50 }}
       className="absolute inset-0 bg-zinc-950 z-[120] flex flex-col p-6 overflow-y-auto no-scrollbar"
     >
-      <div className="flex items-center gap-4 mb-8 sticky top-0 bg-zinc-950/90 backdrop-blur pb-4 z-10 border-b border-white/5">
-        <button onClick={onBack} className="p-2 bg-zinc-900 rounded-full text-zinc-400 hover:text-white transition-colors active:scale-90">
+      <div className="flex items-center gap-4 mb-8 sticky top-0 bg-zinc-950/90 backdrop-blur-xl pb-4 z-10 border-b border-white/10">
+        <button onClick={onBack} className="p-2.5 bg-white/5 rounded-full text-zinc-400 hover:text-white transition-colors active:scale-90 border border-white/5">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h2 className="text-2xl font-display font-black uppercase tracking-tighter text-white">Manuál <span className="text-neon-blue">Nexus</span></h2>
+        <div>
+            <h2 className="text-2xl font-display font-black uppercase tracking-tighter text-white">Taktický <span className="text-signal-cyan">Manuál</span></h2>
+            <p className="text-[8px] font-mono text-zinc-500 uppercase tracking-[0.3em]">Protokol_v1.4_STABLE</p>
+        </div>
       </div>
 
       <div className="pb-24">
-        <ManualSection icon={<Smartphone className="w-5 h-5" />} title="Multi-Device Systém" color="text-neon-blue">
-          <p>Nexus OS je navržen pro plynulé hraní na mobilech, tabletech i desktopech.</p>
-          <ul className="list-disc pl-4 space-y-1">
-            <li><span className="text-white font-bold">Synchronizace:</span> Díky Room ID (např. A1B2C) jsou všechna zařízení u stolu propojena. Pokud vám klesnou životy, vaši spoluhráči to uvidí na svých zařízeních v reálném čase.</li>
-            <li><span className="text-white font-bold">Křížové hraní:</span> Můžete kombinovat iOS, Android a PC. Systém nerozlišuje platformu, pouze vaši identitu.</li>
-          </ul>
-        </ManualSection>
-
-        <ManualSection icon={<Scan className="w-5 h-5" />} title="Skenování Karet" color="text-neon-blue">
-          <p>Systém Nexus interpretuje fyzické čárové kódy z deskové hry. Stačí namířit kameru na kód.</p>
-          <ul className="list-disc pl-4 space-y-1">
-            <li><span className="text-white font-bold">Automatika:</span> Kamera kód rozpozná a okamžitě vyvolá kartu.</li>
-            <li><span className="text-white font-bold">Manuální ID:</span> Pokud kamera nefunguje, použijte ikonu klávesnice a zadejte kód (např. ITEM-01) ručně.</li>
-          </ul>
-        </ManualSection>
-
-        <ManualSection icon={<ShieldAlert className="w-5 h-5" />} title="Třídy a Specializace" color="text-neon-purple">
-          <p>Každá postava v Nexus OS má unikátní roli, která ovlivňuje hratelnost a interakci s NPC.</p>
-          <div className="grid grid-cols-1 gap-4 mt-4">
-            <div className="bg-zinc-900/50 p-3 rounded-xl border-l-2 border-red-500">
-               <div className="flex items-center gap-2 mb-1">
-                  <Sword className="w-4 h-4 text-red-500" />
-                  <span className="text-white font-bold uppercase text-xs">Válečník</span>
-               </div>
-               <p className="text-[11px] text-zinc-500 italic mb-2">"Hrubá síla a respekt."</p>
-               <p className="text-[11px]">Získává <span className="text-red-400">slevu 10%</span> na vybavení u obchodníků.</p>
-            </div>
-            
-            <div className="bg-zinc-900/50 p-3 rounded-xl border-l-2 border-blue-400">
-               <div className="flex items-center gap-2 mb-1">
-                  <Wand2 className="w-4 h-4 text-blue-400" />
-                  <span className="text-white font-bold uppercase text-xs">Mág</span>
-               </div>
-               <p className="text-[11px] text-zinc-500 italic mb-2">"Arkánní znalosti."</p>
-               <p className="text-[11px]">Má <span className="text-blue-300">slevu 25%</span> na spotřební předměty a svitky.</p>
+        {/* STATISTIKY */}
+        <ManualSection icon={<Activity className="w-5 h-5 text-red-500" />} title="Analýza Atributů" color="text-red-500">
+          <p className="text-zinc-500 italic mb-4 font-mono text-xs">"Sleduj své životní funkce, nebo se staň součástí historie sektoru."</p>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 mb-2 text-red-500">
+                    <Heart className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Vitalita (HP)</span>
+                </div>
+                <p className="text-xs">Tvoje biologická integrita. Pokud klesne na <span className="text-red-400 font-bold">0</span>, tvoje postava je vyřazena z mise. HP obnovuj lékárničkami nebo odpočinkem v bezpečných zónách.</p>
             </div>
 
-            <div className="bg-zinc-900/50 p-3 rounded-xl border-l-2 border-green-500">
-               <div className="flex items-center gap-2 mb-1">
-                  <Footprints className="w-4 h-4 text-green-500" />
-                  <span className="text-white font-bold uppercase text-xs">Zloděj</span>
-               </div>
-               <p className="text-[11px] text-zinc-500 italic mb-2">"Šance na lup."</p>
-               <p className="text-[11px]"><span className="text-green-400">30% šance</span> na ukradení zboží zdarma při nákupu.</p>
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 mb-2 text-signal-cyan">
+                    <Zap className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Energie (Mana)</span>
+                </div>
+                <p className="text-xs">Palivo pro tvoje speciální schopnosti, technologické moduly a magické artefakty. Bez energie nemůžeš používat aktivní karty z Batohu.</p>
             </div>
 
-            <div className="bg-zinc-900/50 p-3 rounded-xl border-l-2 border-yellow-500">
-               <div className="flex items-center gap-2 mb-1">
-                  <Cross className="w-4 h-4 text-yellow-500" />
-                  <span className="text-white font-bold uppercase text-xs">Kněz</span>
-               </div>
-               <p className="text-[11px] text-zinc-500 italic mb-2">"Požehnání."</p>
-               <p className="text-[11px]">Má <span className="text-yellow-400">slevu 45%</span> na léčivé a očistné předměty.</p>
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 mb-2 text-signal-amber">
+                    <Coins className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Kredity (Gold)</span>
+                </div>
+                <p className="text-xs">Univerzální měna pro obchodování u NPC a na Sektorové burze. Slouží k nákupu vybavení nebo uplácení stráží.</p>
+            </div>
+
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 mb-2 text-zinc-400">
+                    <Shield className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Brnění (Armor)</span>
+                </div>
+                <p className="text-xs">Pasivní ochrana. Snižuje příchozí poškození (DMG) při neúspěšných hodech kostkou nebo útocích nepřátel.</p>
+            </div>
+
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 mb-2 text-purple-400">
+                    <Star className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Štěstí (Luck)</span>
+                </div>
+                <p className="text-xs">Ovlivňuje kritické úspěchy při skenování a šanci na vzácnější nálezy v loot boxech. Vyšší štěstí = lepší interpretace dat.</p>
+            </div>
+
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 mb-2 text-cyan-400">
+                    <Wind className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Kyslík (O2)</span>
+                </div>
+                <p className="text-xs">Kritické v nehostinných sektorech. Pokud hodnota klesne na nulu, začneš ztrácet HP každé kolo. Doplňuj kyslíkovými bombami nebo filtrací.</p>
             </div>
           </div>
         </ManualSection>
 
-        <ManualSection icon={<div className="flex gap-1"><Sun className="w-4 h-4" /><Moon className="w-4 h-4" /></div>} title="Cyklus Den a Noc" color="text-yellow-500">
-          <p>Nexus OS sleduje reálný čas nebo nastavení administrátora. Svět se mění podle denní doby.</p>
-          <ul className="list-disc pl-4 space-y-1">
-            <li><span className="text-orange-400 font-bold">DEN:</span> Standardní efekty, bezpečnější cestování.</li>
-            <li><span className="text-indigo-400 font-bold">NOC:</span> Karty mění své vlastnosti. Monstra jsou agresivnější.</li>
+        {/* CHOVÁNÍ APPLIKACE */}
+        <ManualSection icon={<Smartphone className="w-5 h-5 text-signal-cyan" />} title="Protokoly Systému" color="text-signal-cyan">
+          <p className="text-zinc-300">Nexus OS je hybridní rozhraní. Aplikace se chová dynamicky podle tvého postupu:</p>
+          <ul className="space-y-4 mt-2">
+            <li className="flex gap-3">
+                <div className="p-2 bg-white/5 rounded text-signal-cyan shrink-0 h-fit"><Database className="w-4 h-4" /></div>
+                <div>
+                    <span className="text-white font-bold block text-xs uppercase tracking-widest mb-1">Persistentní Vault</span>
+                    <p className="text-xs">Všechny karty, které naskenuješ a <span className="text-signal-cyan font-bold">ULOŽÍŠ</span>, zůstávají trvale v tvém Batohu (v cloudu). Jsou dostupné i pro budoucí mise, dokud je neprodáš nebo nespotřebuješ.</p>
+                </div>
+            </li>
+            <li className="flex gap-3">
+                <div className="p-2 bg-white/5 rounded text-yellow-500 shrink-0 h-fit"><Sun className="w-4 h-4" /></div>
+                <div>
+                    <span className="text-white font-bold block text-xs uppercase tracking-widest mb-1">Denní/Noční Cyklus</span>
+                    <p className="text-xs">Aplikace v reálném čase mění pravidla hry. V noci (po 20:00) mají monstra vyšší útok a karty mohou vykazovat jiné efekty. Admin může cyklus v sektoru manuálně přenastavit.</p>
+                </div>
+            </li>
+            <li className="flex gap-3">
+                <div className="p-2 bg-white/5 rounded text-purple-500 shrink-0 h-fit"><Users className="w-4 h-4" /></div>
+                <div>
+                    <span className="text-white font-bold block text-xs uppercase tracking-widest mb-1">Real-time Jednotka</span>
+                    <p className="text-xs">V režimu Tým vidí tvůj tým tvoje HP v reálném čase. Pokud někdo v chatu nabídne kartu, můžeš ji přijmout přímo do svého Batohu jedním kliknutím.</p>
+                </div>
+            </li>
+            <li className="flex gap-3">
+                <div className="p-2 bg-white/5 rounded text-signal-amber shrink-0 h-fit"><Hammer className="w-4 h-4" /></div>
+                <div>
+                    <span className="text-white font-bold block text-xs uppercase tracking-widest mb-1">Fabrikace (Pro Adminy)</span>
+                    <p className="text-xs">Sekce Fab slouží k tvorbě nových herních karet. Změny se okamžitě propisují do master-katalogu a jsou skenovatelné všemi jednotkami.</p>
+                </div>
+            </li>
           </ul>
         </ManualSection>
 
-        <ManualSection icon={<Activity className="w-5 h-5" />} title="Vysvětlení Statistik" color="text-neon-green">
-          <div className="grid grid-cols-1 gap-4 mt-2">
-            <div className="flex items-start gap-3 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
-              <Heart className="w-4 h-4 text-red-500 shrink-0 mt-1" />
-              <div>
-                <p className="text-white font-bold text-xs uppercase">HP (Zdraví)</p>
-                <p className="text-[11px]">Body výdrže. Při 0 je postava vyřazena.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
-              <Zap className="w-4 h-4 text-blue-400 shrink-0 mt-1" />
-              <div>
-                <p className="text-white font-bold text-xs uppercase">Mana (Energie)</p>
-                <p className="text-[11px]">Energie pro schopnosti a magické karty.</p>
-              </div>
-            </div>
+        {/* RADY */}
+        <ManualSection icon={<ShieldAlert className="w-5 h-5 text-signal-amber" />} title="Rady pro Přežití" color="text-signal-amber">
+          <div className="space-y-4">
+             <div className="p-4 bg-signal-amber/5 border-l-4 border-signal-amber rounded-r-xl">
+                <p className="text-xs text-zinc-200">"Před vstupem do temného sektoru se ujisti, že máš v Batohu alespoň dva energetické články. Bez many jsi jen maso pro mutanty."</p>
+             </div>
+             <ul className="list-disc pl-5 space-y-2 text-xs">
+                <li>Využívej <span className="text-white font-bold underline">Sektorovou burzu</span> pro zbavení se nepotřebných karet za kredity.</li>
+                <li>Některé karty jsou <span className="text-signal-hazard font-bold">SPOTŘEBOVATELNÉ</span> – po jednom použití zmizí z tvého Batohu navždy.</li>
+                <li>Při skenování kódu se dívej na <span className="text-signal-cyan font-bold">RARITU</span>. Legendární karty mají často skryté noční bonusy.</li>
+             </ul>
           </div>
         </ManualSection>
 
-        <ManualSection icon={<Users className="w-5 h-5" />} title="Týmová Hra & Tahy" color="text-neon-purple">
-          <p>V režimu "Tým" se synchronizujete s ostatními hráči u stolu.</p>
-          <ul className="list-disc pl-4 space-y-1">
-            <li><span className="text-white font-bold">Tahový Systém:</span> Aplikace hlídá, kdo je na řadě.</li>
-            <li><span className="text-white font-bold">Lobby:</span> V sekci Tým vidíte HP všech spoluhráčů.</li>
-          </ul>
-        </ManualSection>
-
-        <div className="mt-12 bg-neon-blue/5 border border-neon-blue/20 p-6 rounded-2xl text-center">
-          <div className="flex justify-center mb-3 text-neon-blue">
-            <Info className="w-10 h-10" />
+        <div className="mt-12 bg-signal-cyan/5 border border-signal-cyan/20 p-8 rounded-3xl text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Smartphone className="w-20 h-20" />
           </div>
-          <p className="text-xs text-zinc-500 uppercase font-bold tracking-[0.2em] mb-2">Nexus Operating System</p>
-          <p className="text-[10px] text-zinc-600">Verze Jádra: 0.6.6_STABLE<br/>Vyvinuto by: DeXoArt.</p>
+          <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.3em] mb-2">Nexus Operating System</p>
+          <p className="text-xs text-zinc-400 font-bold">Verze Jádra: 1.4.1_STABLE_120FPS<br/>Status: <span className="text-green-500 animate-pulse uppercase">Link_Stable</span></p>
+          <p className="text-[9px] text-zinc-600 mt-4 font-mono tracking-widest">Vyvinuto divizí DeXoArt Tactical Systems.</p>
         </div>
       </div>
     </motion.div>

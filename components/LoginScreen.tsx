@@ -128,7 +128,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-transparent text-white placeholder-white/20 focus:outline-none font-mono text-sm uppercase font-bold"
-                  placeholder="jmeno@sektor.cz"
+                  placeholder="Zadejte váš - EMAIL.."
                 />
               </div>
             </div>

@@ -56,7 +56,7 @@ export const vibrate = (pattern: number | number[]) => {
   }
 };
 
-type SoundType = 'click' | 'scan' | 'error' | 'success' | 'heal' | 'damage' | 'message' | 'open' | 'siren';
+type SoundType = 'click' | 'scan' | 'error' | 'success' | 'heal' | 'damage' | 'message' | 'open' | 'siren' | 'gift';
 
 export const playSound = (type: SoundType) => {
   if (!isSoundEnabled) return;
@@ -158,6 +158,7 @@ export const playSound = (type: SoundType) => {
         break;
 
       case 'success': 
+      case 'gift':
         // Positive Chord (Major Triad) with glissando
         {
             const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major

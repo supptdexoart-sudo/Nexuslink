@@ -2,19 +2,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { GameEvent, GameEventType } from "../types";
 
-// Globální deklarace pro process.env, aby TypeScript nehlásil chybu
-declare const process: { env: { API_KEY: string } };
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Fix for TS2580: Cannot find name 'process' in Vite/Browser environment
+declare const process: any;
 
 export const interpretCode = async (code: string): Promise<GameEvent> => {
   try {
+    /** 
+     * Inicializace Gemini AI. 
+     * Vite automaticky nahradí process.env.API_KEY během buildu.
+     */
+    // Fixed: Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Interpretuj tento čárový kód/sériové číslo "${code}" jako unikátní prvek do sci-fi deskové hry Nexus. 
-                 Vytvoř zajímavý název, atmosférický popis a herní statistiky.`,
+                 Vytvoř zajímavý název, atmosférický popis a herní statistiky. Vše generuj v českém jazyce.`,
       config: {
-        systemInstruction: "Jsi generátor obsahu pro kyberpunkovou deskovou hru. Generuj pouze validní JSON.",
+        systemInstruction: "Jsi generátor obsahu pro kyberpunkovou deskovou hru. Generuj pouze validní JSON v češtině.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -49,8 +54,10 @@ export const interpretCode = async (code: string): Promise<GameEvent> => {
       }
     });
 
+    // Fixed: response.text is a property, not a method.
     const jsonText = response.text || "{}";
     const result = JSON.parse(jsonText);
+    
     return {
       ...result,
       id: code,
@@ -62,10 +69,10 @@ export const interpretCode = async (code: string): Promise<GameEvent> => {
     return {
       id: code,
       title: "Neznámý Artefakt",
-      description: "Tento kód vykazuje anomálie v datech. Původ neznámý.",
+      description: "Tento kód vykazuje anomálie v datech. Původ neznámý (Chyba spojení se sektorem).",
       type: GameEventType.ITEM,
       rarity: "Common",
-      stats: [{ label: "HP", value: "+5" }],
+      stats: [{ label: "STATUS", value: "OFFLINE" }],
       canBeSaved: true
     };
   }

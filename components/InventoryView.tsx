@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Gift, X, Cpu, Swords, AlertTriangle, Sun, Moon, Lock, Unlock, Trash2 } from 'lucide-react';
+import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { playSound } from '../services/soundService';
+import { playSound, vibrate } from '../services/soundService';
 
 interface InventoryViewProps {
     inventory: GameEvent[];
@@ -14,20 +15,21 @@ interface InventoryViewProps {
     playerClass: PlayerClass | null;
     giftTarget: string | null;
     onRefresh: () => void;
-    onToggleNightOverride: () => void;
-    onCancelGift: () => void;
     onItemClick: (event: GameEvent) => void;
-    getAdjustedItem: (item: GameEvent, isNight: boolean, pClass: PlayerClass | null) => GameEvent;
-    onToggleLock?: (id: string) => void;
-    onDeleteItem?: (id: string) => void;
+    onTransferItem?: (itemId: string, targetNickname: string) => void;
+    userNickname?: string;
+    roomMembers?: {name: string, hp: number}[];
 }
+
+type SortMode = 'DEFAULT' | 'RARITY' | 'SPECIALIZATION';
 
 const getRarityConfig = (rarity: string, type: string) => {
     if (type === GameEventType.BOSS) return { border: 'border-signal-hazard shadow-[0_0_15px_rgba(255,60,60,0.3)]', text: 'text-signal-hazard', label: 'BOSS_LEVEL' };
-    switch (rarity) {
-        case 'Legendary': return { border: 'border-signal-amber shadow-[0_0_15px_rgba(255,157,0,0.4)]', text: 'text-signal-amber', label: 'LEGENDÁRNÍ' };
-        case 'Epic': return { border: 'border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]', text: 'text-purple-400', label: 'EPICKÉ' };
-        case 'Rare': return { border: 'border-signal-cyan shadow-[0_0_10px_rgba(0,242,255,0.2)]', text: 'text-signal-cyan', label: 'VZÁCNÉ' };
+    const r = (rarity || 'Common').toLowerCase();
+    switch (r) {
+        case 'legendary': return { border: 'border-signal-amber shadow-[0_0_15px_rgba(255,157,0,0.4)]', text: 'text-signal-amber', label: 'LEGENDÁRNÍ' };
+        case 'epic': return { border: 'border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]', text: 'text-purple-400', label: 'EPICKÉ' };
+        case 'rare': return { border: 'border-signal-cyan shadow-[0_0_10px_rgba(0,242,255,0.2)]', text: 'text-signal-cyan', label: 'VZÁCNÉ' };
         default: return { border: 'border-white/20', text: 'text-white/40', label: 'BĚŽNÉ' };
     }
 };
@@ -37,235 +39,277 @@ const getEventIcon = (type: GameEventType) => {
         case GameEventType.BOSS: return <Crown className="w-4 h-4" />;
         case GameEventType.ITEM: return <Box className="w-4 h-4" />;
         case GameEventType.MERCHANT: return <ShoppingBag className="w-4 h-4" />;
-        case GameEventType.TRAP: return <AlertTriangle className="w-4 h-4" />;
+        case GameEventType.TRAP: return <Swords className="w-4 h-4" />;
         case GameEventType.ENCOUNTER: return <Swords className="w-4 h-4" />;
         default: return <BookOpen className="w-4 h-4" />;
     }
 };
 
 const InventoryView: React.FC<InventoryViewProps> = ({
-    inventory, loadingInventory, isRefreshing, isAdmin, isNight, adminNightOverride, playerClass, giftTarget,
-    onRefresh, onToggleNightOverride, onCancelGift, onItemClick, getAdjustedItem, onToggleLock, onDeleteItem
+    inventory, loadingInventory, isRefreshing, playerClass,
+    onRefresh, onItemClick
 }) => {
-    const [flippingId, setFlippingId] = useState<string | null>(null);
-    const [selectedCategory, setSelectedCategory] = useState<GameEventType | 'ALL' | 'OTHERS'>('ALL');
+    const [selectedCategory] = useState<GameEventType | 'ALL' | 'OTHERS'>('ALL');
+    const [sortMode, setSortMode] = useState<SortMode>('DEFAULT');
+    
+    // Comparison State
+    const [isCompareMode, setIsCompareMode] = useState(false);
+    const [selectedForCompare, setSelectedForCompare] = useState<GameEvent[]>([]);
 
     const handleCardClick = (event: GameEvent) => {
-        if (giftTarget && !event.isShareable) return;
-        playSound('click');
-        setFlippingId(event.id);
-        setTimeout(() => {
-            onItemClick(event);
-            setFlippingId(null);
-        }, 300);
-    };
-
-    const handleLockToggle = (e: React.MouseEvent, id: string) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (onToggleLock) onToggleLock(id);
-    };
-
-    const handleDelete = (e: React.MouseEvent, id: string, isLocked?: boolean) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (isLocked) {
-            playSound('error');
+        if (isCompareMode) {
+            playSound('click');
+            vibrate(10);
+            if (selectedForCompare.some(i => i.id === event.id)) {
+                setSelectedForCompare(prev => prev.filter(i => i.id !== event.id));
+            } else if (selectedForCompare.length < 2) {
+                setSelectedForCompare(prev => [...prev, event]);
+            }
             return;
         }
-        if (window.confirm(`Smazat asset ${id}? Operace je NEVRATNÁ.`)) {
-            if (onDeleteItem) {
-                onDeleteItem(id);
-            }
-        }
+        playSound('click');
+        onItemClick(event);
     };
 
-    const displayTimeIsNight = adminNightOverride !== null ? adminNightOverride : isNight;
+    const toggleCompareMode = () => {
+        setIsCompareMode(!isCompareMode);
+        setSelectedForCompare([]);
+        playSound(isCompareMode ? 'click' : 'open');
+        vibrate(20);
+    };
 
-    const filteredInventory = useMemo(() => {
-        if (selectedCategory === 'ALL') return inventory;
-        if (selectedCategory === 'OTHERS') {
-            return inventory.filter(i => i.type !== GameEventType.ITEM && i.type !== GameEventType.MERCHANT && i.type !== GameEventType.BOSS);
+    const sortedAndFilteredInventory = useMemo(() => {
+        let result = [...inventory];
+        if (selectedCategory !== 'ALL') {
+            if (selectedCategory === 'OTHERS') {
+                const otherTypes = [GameEventType.ENCOUNTER, GameEventType.TRAP, GameEventType.DILEMA];
+                result = result.filter(i => otherTypes.includes(i.type));
+            } else {
+                result = result.filter(item => item.type === selectedCategory);
+            }
         }
-        return inventory.filter(item => item.type === selectedCategory);
-    }, [inventory, selectedCategory]);
+        if (sortMode === 'RARITY') {
+            const power: Record<string, number> = { 'legendary': 3, 'epic': 2, 'rare': 1, 'common': 0 };
+            result.sort((a, b) => {
+                const rarityA = (a.rarity || 'Common').toLowerCase();
+                const rarityB = (b.rarity || 'Common').toLowerCase();
+                return (power[rarityB] || 0) - (power[rarityA] || 0);
+            });
+        } else if (sortMode === 'SPECIALIZATION' && playerClass) {
+            result.sort((a, b) => {
+                const aHasClass = a.classVariants && a.classVariants[playerClass] ? 1 : 0;
+                const bHasClass = b.classVariants && b.classVariants[playerClass] ? 1 : 0;
+                return bHasClass - aHasClass;
+            });
+        } else {
+            result.reverse(); 
+        }
+        return result;
+    }, [inventory, selectedCategory, sortMode, playerClass]);
 
-    const categories = [
-        { id: 'ALL', label: 'Vše', icon: Database },
-        { id: GameEventType.BOSS, label: 'Boss', icon: Crown },
-        { id: GameEventType.ITEM, label: 'Předmět', icon: Box },
-        { id: GameEventType.MERCHANT, label: 'Obchod', icon: ShoppingBag },
-        { id: 'OTHERS', label: 'Akce', icon: Swords },
+    const sortOptions = [
+        { id: 'DEFAULT', label: 'VÝCHOZÍ', icon: ArrowDownAZ },
+        { id: 'RARITY', label: 'VZÁCNOST', icon: Star },
+        { id: 'SPECIALIZATION', label: 'TŘÍDA', icon: Target },
     ];
 
-    const renderInventorySection = (title: string, items: GameEvent[]) => {
-        const displayedItems = items.map(item => getAdjustedItem(item, displayTimeIsNight, playerClass));
-  
-        if (displayedItems.length === 0) return null;
+    // --- RENDER COMPARISON MODAL ---
+    const renderComparisonOverlay = () => {
+        if (selectedForCompare.length !== 2) return null;
+        const [itemA, itemB] = selectedForCompare;
+        
+        // Collect all unique stats from both
+        const allStatLabels = Array.from(new Set([
+            ...(itemA.stats || []).map(s => s.label),
+            ...(itemB.stats || []).map(s => s.label)
+        ]));
+
+        const parseVal = (v: string | number) => {
+            const n = parseInt(String(v).replace(/[^0-9-]/g, ''));
+            return isNaN(n) ? 0 : n;
+        };
+
         return (
-            <div className="mb-10">
-                <div className="flex items-center gap-3 mb-6 border-l-2 border-signal-cyan pl-4">
-                    <h3 className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-signal-cyan">{title}</h3>
-                    <span className="text-[10px] font-mono text-white font-bold bg-white/5 px-2 py-0.5 border border-white/10 rounded">{items.length}</span>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-xl p-6 flex flex-col">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 className="text-2xl font-black uppercase text-signal-cyan chromatic-text">Taktické Srovnání</h2>
+                        <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest">Analýza_Assetů_v1.0</p>
+                    </div>
+                    <button onClick={() => setSelectedForCompare([])} className="p-3 bg-white/5 rounded-full text-zinc-400 hover:text-white"><X className="w-6 h-6"/></button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    {displayedItems.map((event, idx) => {
-                        const isFlipping = flippingId === event.id;
-                        const config = getRarityConfig(event.rarity, event.type);
-                        const isLocked = event.isLocked;
 
-                        return (
-                            <div key={event.id} className="relative h-48 md:h-56">
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.01, ease: "easeOut" }}
-                                    onClick={() => handleCardClick(event)}
-                                    className={`relative w-full h-full cursor-pointer transition-transform duration-300 ${isFlipping ? 'scale-90' : 'active:scale-95'}`}
-                                >
-                                    <div className={`tactical-card h-full flex flex-col justify-between p-4 bg-black/40 border-t-2 ${config.border}`}>
-                                        <div className="corner-accent top-left !w-2 !h-2 opacity-30"></div>
+                <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
+                    {/* Items Header */}
+                    <div className="grid grid-cols-2 gap-4">
+                        {[itemA, itemB].map((item, idx) => {
+                            const config = getRarityConfig(item.rarity, item.type);
+                            return (
+                                <div key={idx} className={`p-4 tactical-card bg-white/5 border-t-4 ${config.border}`}>
+                                    <div className={`mb-2 ${config.text}`}>{getEventIcon(item.type)}</div>
+                                    <h3 className="text-xs font-black uppercase text-white truncate leading-tight">{item.title}</h3>
+                                    <p className="text-[8px] text-zinc-500 font-mono mt-1">{config.label}</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Stats Comparison Table */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-white/10 pb-2">
+                            <Zap className="w-3 h-3" /> Parametry_Modulů
+                        </div>
+                        
+                        {allStatLabels.map(label => {
+                            const valA = itemA.stats?.find(s => s.label === label)?.value || '---';
+                            const valB = itemB.stats?.find(s => s.label === label)?.value || '---';
+                            const numA = parseVal(valA);
+                            const numB = parseVal(valB);
+
+                            return (
+                                <div key={label} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                                    <div className="text-center mb-2">
+                                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{label}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-8 relative">
+                                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-6 bg-white/10" />
                                         
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className={`${config.text} bg-white/5 p-1.5 rounded-lg`}>
-                                                {getEventIcon(event.type)}
-                                            </div>
-                                            {isAdmin && (
-                                                <div className="flex items-center gap-2 z-50">
-                                                    <button 
-                                                        onClick={(e) => handleLockToggle(e, event.id)}
-                                                        className={`p-2 rounded-md transition-all z-50 ${isLocked ? 'text-signal-hazard bg-signal-hazard/10' : 'text-white/20 hover:text-white hover:bg-white/5'}`}
-                                                    >
-                                                        {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => handleDelete(e, event.id, isLocked)}
-                                                        className={`p-2 rounded-md transition-all z-50 ${isLocked ? 'text-white/5 cursor-not-allowed' : 'text-zinc-400 bg-zinc-800 hover:text-white hover:bg-red-600'}`}
-                                                        disabled={isLocked}
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            )}
-                                            {!isAdmin && <span className="text-[8px] font-mono text-white/20 uppercase font-black tracking-widest">{event.id.slice(-4)}</span>}
+                                        <div className={`text-center font-mono font-black text-lg ${numA > numB ? 'text-signal-cyan' : numA < numB ? 'text-zinc-600' : 'text-white'}`}>
+                                            {valA}
+                                            {numA > numB && <div className="text-[8px] text-signal-cyan/50 mt-1">▲ LEPŠÍ</div>}
                                         </div>
-
-                                        <div className="flex-1 flex flex-col justify-center">
-                                            <h3 className="font-bold text-[11px] leading-tight text-white uppercase tracking-tight mb-2 line-clamp-2 font-sans">{event.title}</h3>
-                                            <p className="text-[8px] text-white/40 font-mono line-clamp-2 leading-relaxed uppercase tracking-tighter">{event.description}</p>
-                                        </div>
-
-                                        <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between">
-                                            <span className={`text-[8px] font-mono uppercase font-black tracking-[0.2em] ${config.text}`}>{config.label}</span>
-                                            {event.price && <span className="text-[10px] text-signal-amber font-mono font-black">{event.price}₪</span>}
+                                        
+                                        <div className={`text-center font-mono font-black text-lg ${numB > numA ? 'text-signal-cyan' : numB < numA ? 'text-zinc-600' : 'text-white'}`}>
+                                            {valB}
+                                            {numB > numA && <div className="text-[8px] text-signal-cyan/50 mt-1">▲ LEPŠÍ</div>}
                                         </div>
                                     </div>
-                                </motion.div>
-                            </div>
-                        );
-                    })}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="p-4 bg-zinc-900/50 border border-white/10 rounded-2xl italic text-[11px] text-zinc-400 leading-relaxed text-center">
+                        "Nexus AI doporučuje ponechat asset s vyšší energetickou integritou z vašeho Batohu."
+                    </div>
                 </div>
-            </div>
+
+                <button onClick={() => setSelectedForCompare([])} className="w-full py-5 bg-signal-cyan text-black font-black uppercase text-xs tracking-[0.3em] rounded-2xl mt-6 shadow-[0_0_30px_rgba(0,242,255,0.2)]">
+                    Ukončit_Analýzu
+                </button>
+            </motion.div>
         );
     };
 
     return (
-        <div className="absolute inset-0 w-full h-full flex flex-col p-6 bg-[#0a0b0d] overflow-hidden">
-            <AnimatePresence>
-                {giftTarget && (
-                    <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -50, opacity: 0 }} className="mb-6 tactical-card border-signal-cyan/40 p-4 flex justify-between items-center z-20 bg-signal-cyan/5">
-                        <div className="flex items-center gap-4">
-                            <Gift className="w-6 h-6 text-signal-cyan" />
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-signal-cyan uppercase tracking-[0.3em] animate-pulse">PROTOKOL_PŘENOSU</span>
-                                <span className="text-xs text-white font-mono font-bold">CÍL: {giftTarget}</span>
-                            </div>
-                        </div>
-                        <button onClick={onCancelGift} className="p-2 text-white/30 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
+        <div className="w-full h-full flex flex-col p-6 bg-[#0a0b0d] overflow-hidden">
             <div className="flex justify-between items-start mb-4 relative z-20">
                 <div className="flex flex-col">
-                    <h2 className="text-3xl font-black uppercase tracking-tighter text-white font-sans chromatic-text leading-none">DATABÁZE</h2>
+                    <h2 className="text-3xl font-black uppercase tracking-tighter text-white font-sans chromatic-text leading-none">MŮJ BATOH</h2>
                     <div className="flex items-center gap-3 mt-1.5">
                       <Database className="w-4 h-4 text-signal-cyan/50" />
-                      <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-[0.4em]">Centrální_Repozitář</span>
+                      <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-[0.4em]">Osobní_Zásoby_Sektoru</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isAdmin && (
-                        <button 
-                            onClick={onToggleNightOverride}
-                            className={`p-3 tactical-card border-white/10 transition-all active:scale-90 ${displayTimeIsNight ? 'bg-indigo-900/40 text-indigo-400 border-indigo-500/50' : 'bg-amber-900/40 text-amber-500 border-amber-500/50'}`}
-                        >
-                            {displayTimeIsNight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                        </button>
-                    )}
+                    <button 
+                        onClick={toggleCompareMode}
+                        className={`p-3 tactical-card transition-all active:scale-90 border-2 ${isCompareMode ? 'bg-signal-cyan border-signal-cyan text-black' : 'bg-white/5 border-white/10 text-signal-cyan'}`}
+                        title="Srovnání Assetů"
+                    >
+                        <ArrowLeftRight className="w-4 h-4" />
+                    </button>
                     <button onClick={() => onRefresh()} disabled={isRefreshing} className="p-3 tactical-card bg-white/5 border-white/10 hover:border-signal-cyan transition-all active:scale-90 disabled:opacity-50">
                         <RefreshCw className={`w-4 h-4 text-signal-cyan ${isRefreshing ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
             </div>
 
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-4 relative z-20 pb-1">
-                {categories.map((cat) => (
+            {isCompareMode && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-3 bg-signal-cyan/10 border border-signal-cyan/30 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-signal-cyan rounded-full animate-pulse" />
+                        <span className="text-[10px] font-black text-signal-cyan uppercase tracking-widest">
+                            {selectedForCompare.length === 0 ? 'Vyberte první asset...' : 
+                             selectedForCompare.length === 1 ? 'Vyberte druhý asset z Batohu' : 'Analýza připravena'}
+                        </span>
+                    </div>
+                    {selectedForCompare.length > 0 && (
+                        <button onClick={() => setSelectedForCompare([])} className="text-[9px] font-black text-zinc-500 uppercase underline">Reset</button>
+                    )}
+                </motion.div>
+            )}
+
+            <div className="flex gap-2 mb-4">
+                {sortOptions.map((opt) => (
                     <button
-                        key={cat.id}
+                        key={opt.id}
                         onClick={() => {
-                            setSelectedCategory(cat.id as any);
+                            setSortMode(opt.id as SortMode);
                             playSound('click');
                         }}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[7px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                            // Fix: Použití stavu selectedCategory místo setteru setSelectedCategory pro porovnání aktivní kategorie
-                            selectedCategory === cat.id 
-                            ? 'bg-signal-cyan/10 border-signal-cyan text-signal-cyan shadow-[0_0_8px_rgba(0,242,255,0.2)]' 
-                            : 'bg-white/5 border-white/10 text-white/30 hover:border-white/20'
+                        className={`flex-1 py-2 flex flex-col items-center justify-center gap-1 border rounded transition-all ${
+                            sortMode === opt.id 
+                            ? 'bg-signal-cyan/20 border-signal-cyan text-signal-cyan shadow-[0_0_10px_rgba(0,242,255,0.2)]' 
+                            : 'bg-white/5 border-white/10 text-white/40'
                         }`}
                     >
-                        <cat.icon className="w-2.5 h-2.5" />
-                        {cat.label}
+                        <opt.icon className="w-3.5 h-3.5" />
+                        <span className="text-[7px] font-black uppercase tracking-widest">{opt.label}</span>
                     </button>
                 ))}
             </div>
 
-            {loadingInventory ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-6">
-                    <div className="relative">
-                        <Loader2 className="w-16 h-16 animate-spin text-signal-cyan/30" />
-                        <Cpu className="w-8 h-8 text-signal-cyan absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            <div className="flex-1 overflow-y-auto pb-24 no-scrollbar relative z-10">
+                {loadingInventory ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-4">
+                        <Loader2 className="w-10 h-10 animate-spin text-signal-cyan" />
+                        <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Prohledávám Batoh...</span>
                     </div>
-                    <span className="text-[10px] font-mono font-bold text-signal-cyan tracking-[0.5em] animate-pulse">DOTAZOVÁNÍ_CENTRÁLNÍHO_TREZORU...</span>
-                </div>
-            ) : (
-                <div className="flex-1 overflow-y-auto pb-24 no-scrollbar relative z-10">
-                    <AnimatePresence mode="popLayout">
-                        {filteredInventory.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-center p-10 border border-dashed border-white/10 rounded-3xl bg-white/[0.02]">
-                            <Database className="w-20 h-20 text-white/5 mb-6" />
-                            <div className="space-y-4">
-                                <h3 className="text-xl font-bold uppercase tracking-widest text-white/60">Prázdný_Sektor</h3>
-                                <p className="text-[10px] uppercase font-bold tracking-[0.2em] leading-relaxed text-white/20 font-mono">
-                                    V této kategorii se momentálně nenachází žádná data.
-                                </p>
+                ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                        {sortedAndFilteredInventory.length === 0 ? (
+                            <div className="col-span-2 flex flex-col items-center justify-center py-10 opacity-50">
+                                <Box className="w-12 h-12 text-zinc-600 mb-2" />
+                                <span className="text-xs font-mono uppercase text-zinc-500 font-bold">Batoh je prázdný</span>
                             </div>
-                        </div>
                         ) : (
-                        <div className="space-y-8">
-                            { (selectedCategory === 'ALL' || selectedCategory === GameEventType.BOSS) && 
-                                renderInventorySection("TŘÍDA: BOSS", filteredInventory.filter(i => i.type === GameEventType.BOSS)) }
-                            { (selectedCategory === 'ALL' || selectedCategory === GameEventType.ITEM) && 
-                                renderInventorySection("TŘÍDA: VYBAVENÍ", filteredInventory.filter(i => i.type === GameEventType.ITEM)) }
-                            { (selectedCategory === 'ALL' || selectedCategory === GameEventType.MERCHANT) && 
-                                renderInventorySection("TŘÍDA: OBCHODNÍK", filteredInventory.filter(i => i.type === GameEventType.MERCHANT)) }
-                            { (selectedCategory === 'ALL' || selectedCategory === 'OTHERS') && 
-                                renderInventorySection("TŘÍDA: TAKTICKÉ_OPERACE", filteredInventory.filter(i => i.type !== GameEventType.ITEM && i.type !== GameEventType.MERCHANT && i.type !== GameEventType.BOSS)) }
-                        </div>
+                            sortedAndFilteredInventory.map((item) => {
+                                const config = getRarityConfig(item.rarity, item.type);
+                                const isSelected = selectedForCompare.some(i => i.id === item.id);
+                                
+                                return (
+                                    <motion.div 
+                                        key={item.id} 
+                                        onClick={() => handleCardClick(item)}
+                                        className={`tactical-card h-48 flex flex-col justify-between p-4 bg-black/40 border-t-2 ${config.border} active:scale-95 transition-transform group relative ${isSelected ? 'scale-90 border-2 border-signal-cyan ring-4 ring-signal-cyan/20' : ''}`}
+                                    >
+                                        {isSelected && (
+                                            <div className="absolute inset-0 bg-signal-cyan/10 flex items-center justify-center z-10">
+                                                <div className="bg-signal-cyan text-black p-2 rounded-full shadow-[0_0_20px_#00f2ff]">
+                                                    <ArrowLeftRight className="w-6 h-6" />
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between items-start">
+                                            <div className={`${config.text}`}>{getEventIcon(item.type)}</div>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-[10px] uppercase text-white line-clamp-2 group-hover:text-signal-cyan transition-colors">{item.title}</h3>
+                                            <p className="text-[8px] text-zinc-500 font-mono mt-1">{config.label}</p>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })
                         )}
-                    </AnimatePresence>
-                </div>
-            )}
+                    </div>
+                )}
+            </div>
+
+            <AnimatePresence>
+                {renderComparisonOverlay()}
+            </AnimatePresence>
         </div>
     );
 };

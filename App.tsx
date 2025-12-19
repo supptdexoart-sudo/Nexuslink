@@ -1,359 +1,315 @@
 
-import React, { useState } from 'react';
-import { ScanLine, Settings, Box, Layers, Coins, SquarePen, ChevronRight, Timer, ArrowRight, Zap, Shield, Sparkles, Wind, ChevronDown, ChevronUp, Sun, Moon, Activity, Target, ShieldAlert, BookOpen, Server, RefreshCcw, Volume2, VolumeX, Smartphone, Vibrate, VibrateOff } from 'lucide-react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import Scanner from './components/Scanner';
-import EventCard from './components/EventCard';
-import MerchantScreen from './components/MerchantScreen';
-import LoginScreen from './components/LoginScreen';
-import Generator from './components/Generator';
-import Room from './components/Room';
-import GameSetup from './components/GameSetup'; 
-import Toast from './components/Toast';
-import ServerLoader from './components/ServerLoader'; 
-import InventoryView from './components/InventoryView'; 
-import StartupBoot from './components/StartupBoot'; 
-import ManualView from './components/ManualView';
+import React, { useState, useEffect, Suspense, lazy, ReactNode, Component } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameLogic, Tab } from './hooks/useGameLogic';
-import * as apiService from './services/apiService';
+import Scanner from './components/Scanner';
+import LoginScreen from './components/LoginScreen';
+import StartupBoot from './components/StartupBoot';
+import GameSetup from './components/GameSetup';
+import Toast from './components/Toast';
+import EventCard from './components/EventCard';
+import { 
+  Scan, Box, Hammer, Users, Settings as SettingsIcon, 
+  Sun, Moon, Heart, Zap, Coins, Shield, Star, 
+  Wind, Loader2, AlertTriangle
+} from 'lucide-react';
+import { playSound, vibrate } from './services/soundService';
 
-const APP_VERSION = "v1.3.1_PERF";
+// --- DYNAMIC IMPORTS FOR PREFETCHING ---
+const inventoryImport = () => import('./components/InventoryView');
+const generatorImport = () => import('./components/Generator');
+const roomImport = () => import('./components/Room');
+const settingsImport = () => import('./components/SettingsView');
 
-const EndTurnSwipe: React.FC<{ onEnd: () => void; countdown: number }> = ({ onEnd, countdown }) => {
-  const x = useMotionValue(0);
-  const swipeWidth = 240; 
-  const opacity = useTransform(x, [0, swipeWidth * 0.8], [1, 0]);
-  const handleDragEnd = (_: any, info: any) => { if (info.offset.x > 150) onEnd(); };
+// --- LAZY LOADED MODULES ---
+const InventoryView = lazy(inventoryImport);
+const Generator = lazy(generatorImport);
+const Room = lazy(roomImport);
+const SettingsView = lazy(settingsImport);
 
-  return (
-    <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -100, opacity: 0 }} className="fixed top-10 left-4 right-4 z-[110] safe-area-top">
-      <div className="tactical-card bg-[#0a0b0d]/95 border-signal-amber/60 p-4 shadow-[0_0_40px_rgba(255,157,0,0.25)] backdrop-blur-xl">
-        <div className="corner-accent top-left !border-2 !border-signal-amber"></div>
-        <div className="absolute top-0 left-0 w-1 h-full bg-signal-amber" />
-        <motion.div initial={{ width: '100%' }} animate={{ width: `${(countdown / 15) * 100}%` }} transition={{ duration: 1, ease: "linear" }} className="absolute bottom-0 left-0 h-1 bg-signal-amber" />
-        
-        <div className="flex items-center px-2 justify-between pointer-events-none">
-          <div className="flex items-center gap-4">
-             <Timer className="w-6 h-6 text-signal-amber" />
-             <div>
-                <p className="text-signal-amber font-black uppercase text-[8px] tracking-[0.3em] font-mono">Sync_Vypršení</p>
-                <p className="text-white text-sm font-mono font-bold tracking-[0.1em] uppercase">{countdown}S ZBÝVÁ</p>
-             </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-signal-amber animate-pulse" />
-        </div>
-        <motion.div drag="x" dragConstraints={{ left: 0, right: swipeWidth }} onDragEnd={handleDragEnd} style={{ x, opacity }} className="absolute left-1 top-1 bottom-1 w-14 bg-signal-amber rounded-sm flex items-center justify-center cursor-grab active:cursor-grabbing z-10 shadow-lg">
-          <ArrowRight className="w-6 h-6 text-black" />
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-};
+// --- ERROR BOUNDARY FOR LAZY MODULES ---
+interface ModuleErrorBoundaryProps {
+  children?: ReactNode;
+}
 
-const App: React.FC = () => {
-  const [isBooting, setIsBooting] = useState(true);
-  const [showManual, setShowManual] = useState(false);
-  const [serverStatusLog, setServerStatusLog] = useState<string[]>([]);
-  const logic = useGameLogic();
+interface ModuleErrorBoundaryState {
+  hasError: boolean;
+}
 
-  const runDiagnostics = async () => {
-    setServerStatusLog(["[SYSTEM] Zahajuji diagnostiku..."]);
-    try {
-      const isOnline = await apiService.checkHealth();
-      setServerStatusLog(prev => [...prev, "[NET] Dotazuji Backend: " + (isOnline ? 'OK' : 'FAIL')]);
-      setServerStatusLog(prev => [...prev, isOnline ? "[BACKEND] Spojení navázáno." : "[BACKEND] Server neodpovídá!"]);
-      setServerStatusLog(prev => [...prev, "[DB] Kontrola MongoDB Atlas..."]);
-      setTimeout(() => {
-        setServerStatusLog(prev => [...prev, "[DB] Cluster Nexus: PŘIPOJENO", "[SYSTEM] Diagnostika dokončena."]);
-      }, 1000);
-    } catch (e) {
-      setServerStatusLog(prev => [...prev, "[ERR] Kritická chyba spojení."]);
-    }
-  };
-
-  const displayIsNight = logic.adminNightOverride !== null ? logic.adminNightOverride : logic.isNight;
-
-  if (isBooting) return <StartupBoot onComplete={() => setIsBooting(false)} />;
-  if (!logic.userEmail) return <LoginScreen onLogin={logic.handleLogin} />;
-  if (!logic.isServerReady && !logic.isGuest) return <ServerLoader onConnected={() => logic.setIsServerReady(true)} onSwitchToOffline={() => logic.handleLogin('guest')} />;
-  
-  if (!logic.isAdmin && (!logic.roomState.isInRoom && !logic.isSoloMode)) {
-      return <GameSetup initialNickname={logic.roomState.nickname} onConfirmSetup={logic.handleGameSetup} isGuest={logic.isGuest} />;
+// Fixed: Using Component from 'react' explicitly to resolve type inference issues with this.state and this.props
+class ModuleErrorBoundary extends Component<ModuleErrorBoundaryProps, ModuleErrorBoundaryState> {
+  constructor(props: ModuleErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
   }
 
-  const adminShortLabel = `*ADM v1.3`;
-  const userLabel = `*NXS ${APP_VERSION.split('_')[0]}`;
+  static getDerivedStateFromError(): ModuleErrorBoundaryState { 
+    return { hasError: true }; 
+  }
+  
+  render() {
+    // Fixed: Accessed this.state safely with correctly typed inheritance
+    if (this.state.hasError) {
+      return (
+        <div className="h-full w-full flex flex-col items-center justify-center bg-black p-10 text-center">
+          <div className="w-16 h-16 bg-red-950/20 border border-red-500/50 rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+            <AlertTriangle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-black text-white uppercase tracking-widest mb-2">Chyba_Segmentu</h2>
+          <p className="text-zinc-500 text-[10px] font-mono uppercase tracking-widest mb-8 leading-relaxed">
+            Nepodařilo se stáhnout herní modul.<br/>Možná ztráta signálu se sektorem.
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="button-primary py-4 px-10 text-[10px]"
+          >
+            Restartovat HUD
+          </button>
+        </div>
+      );
+    }
+    // Fixed: Accessed this.props safely with correctly typed inheritance
+    return this.props.children;
+  }
+}
+
+const TabLoader = () => (
+  <div className="h-full w-full flex flex-col items-center justify-center bg-black gap-4">
+    <div className="relative">
+      <Loader2 className="w-12 h-12 text-signal-cyan animate-spin opacity-50" />
+      <motion.div 
+        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }}
+        transition={{ duration: 1.5, repeat: Infinity }}
+        className="absolute inset-0 flex items-center justify-center"
+      >
+        <div className="w-2 h-2 bg-signal-cyan rounded-full shadow-[0_0_10px_#00f2ff]" />
+      </motion.div>
+    </div>
+    <div className="flex flex-col items-center">
+      <span className="text-[10px] font-black text-signal-cyan uppercase tracking-[0.4em] animate-pulse">Synchronizace_Dat</span>
+      <span className="text-[8px] font-mono text-zinc-600 uppercase mt-1">Stahování_Segmentu...</span>
+    </div>
+  </div>
+);
+
+const App: React.FC = () => {
+  const logic = useGameLogic();
+  const [bootComplete, setBootComplete] = useState(() => sessionStorage.getItem('nexus_boot_done') === 'true');
+  const [batteryLevel, setBatteryLevel] = useState(0.85);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    if (bootComplete && logic.userEmail && isOnline) {
+      inventoryImport().catch(() => {});
+      roomImport().catch(() => {});
+      if (logic.isAdmin) generatorImport().catch(() => {});
+      settingsImport().catch(() => {});
+    }
+  }, [bootComplete, logic.userEmail, isOnline, logic.isAdmin]);
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    if ('getBattery' in navigator) {
+      (navigator as any).getBattery().then((battery: any) => {
+        const updateBattery = () => setBatteryLevel(battery.level);
+        updateBattery();
+        battery.addEventListener('levelchange', updateBattery);
+        return () => battery.removeEventListener('levelchange', updateBattery);
+      });
+    }
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
+  const handleBootComplete = () => {
+    setBootComplete(true);
+    sessionStorage.setItem('nexus_boot_done', 'true');
+  };
+
+  const handleDayNightClick = () => {
+      playSound('message');
+      vibrate(15);
+      const isNight = logic.isNight;
+      const title = isNight ? "NOČNÍ PROTOKOL AKTIVNÍ" : "DENNÍ PROTOKOL AKTIVNÍ";
+      const timeRange = isNight ? "20:00 — 06:00" : "06:00 — 20:00";
+      const desc = isNight 
+          ? "Zvýšená aktivita biotických hrozeb. Noční varianty karet mají bonus k poškození (+5 DMG). Viditelnost skeneru omezena."
+          : "Stabilní atmosférické podmínky. Standardní loot tabulky a bezpečné obchodní trasy. Bonus k regeneraci kyslíku.";
+      
+      logic.setNotification({ 
+        id: 'cycle-'+Date.now(), 
+        message: `${title}\nČas: ${timeRange}\n\n${desc}`, 
+        type: 'info' 
+      });
+  };
+
+  if (!bootComplete) return <StartupBoot onComplete={handleBootComplete} />;
+  if (!logic.userEmail) return <LoginScreen onLogin={logic.handleLogin} />;
+  if (!logic.roomState.isNicknameSet || !logic.playerClass) {
+    return <GameSetup initialNickname={logic.roomState.nickname} onConfirmSetup={logic.handleGameSetup} isGuest={logic.isGuest} />;
+  }
 
   return (
-    <div className="relative w-full h-full md:h-[96vh] md:max-w-6xl bg-[#0a0b0d] md:border-2 border-white/10 md:rounded-[50px] overflow-hidden flex flex-col font-sans text-white pointer-events-auto shadow-2xl transform-gpu">
-      <AnimatePresence>
-        {logic.screenFlash && (
-          <motion.div key={logic.screenFlash} initial={{ opacity: 0 }} animate={{ opacity: 0.2 }} exit={{ opacity: 0 }} className={`absolute inset-0 z-[120] pointer-events-none ${logic.screenFlash === 'red' ? 'bg-signal-hazard' : logic.screenFlash === 'green' ? 'bg-signal-cyan' : 'bg-blue-500'}`} />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-          {logic.notification && (
-            <Toast key={logic.notification.id} data={logic.notification} onClose={() => logic.setNotification(null)} />
-          )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {logic.showEndTurnPrompt && (
-            <EndTurnSwipe onEnd={logic.handleEndTurn} countdown={logic.turnCountdown} />
-        )}
-      </AnimatePresence>
-
-      <header className="flex-none z-[100] relative safe-area-top border-b border-white/5 bg-black/90 backdrop-blur-md">
-        <div className="px-4 py-3 md:px-8 md:py-6 flex justify-between items-center gap-2">
-          {/* UNIT STATUS */}
-          <button 
-            onClick={() => logic.setNotification({
-                id: 't', 
-                type: 'info', 
-                message: displayIsNight ? 'FÁZE: NOC (20:00 - 06:00)' : 'FÁZE: DEN (06:00 - 20:00)'
-            })} 
-            className="flex items-center gap-3 active:scale-95 transition-transform overflow-hidden min-w-0"
-          >
-            <div className={`p-2 tactical-card border-none bg-white/5 rounded-lg flex-shrink-0 ${displayIsNight ? 'text-indigo-400 shadow-[0_0_15px_rgba(129,140,248,0.2)]' : 'text-signal-amber shadow-[0_0_15px_rgba(255,157,0,0.2)]'}`}>
-              {displayIsNight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+    <div className={`h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white relative`}>
+      
+      <div className="h-28 bg-zinc-950/95 border-b border-white/10 flex flex-col z-[100] shadow-[0_5px_20px_rgba(0,0,0,0.8)]">
+        {/* Top Status Info */}
+        <div className="flex items-center justify-between px-4 py-1 border-b border-white/5 bg-white/[0.01]">
+            <div className="flex items-center gap-2">
+                <span className="text-[7px] font-black text-signal-cyan uppercase tracking-[0.2em] opacity-80">Nexus_OS_v1.4</span>
+                <div className={`w-1 h-1 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500 shadow-[0_0_8px_red] animate-ping'}`} />
             </div>
-            <div className="flex flex-col text-left overflow-hidden">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black tracking-widest text-white/80 uppercase truncate">
-                  {logic.isAdmin ? adminShortLabel : userLabel}
-                </span>
-                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${logic.isServerReady ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'} animate-pulse`} />
-              </div>
-              <div className="battery-meter !w-8 !h-1 mt-1"></div>
+            <div className="flex items-center gap-3">
+                <button onClick={handleDayNightClick} className="flex items-center gap-1.5 active:scale-95 transition-transform">
+                    {logic.isNight ? <Moon className="w-3 h-3 text-indigo-400" /> : <Sun className="w-3 h-3 text-signal-amber" />}
+                    <span className="text-[8px] font-mono text-zinc-400 uppercase tracking-widest">{logic.isNight ? 'Night_Cycle' : 'Day_Cycle'}</span>
+                </button>
+                <div className="w-8 h-1.5 bg-white/5 relative rounded-full overflow-hidden border border-white/10">
+                    <div className="h-full bg-signal-amber shadow-[0_0_5px_#ff9d00]" style={{ width: `${batteryLevel * 100}%` }} />
+                </div>
             </div>
-          </button>
-          
-          {/* MAIN STATS PILL - Hidden for Admin */}
-          {!logic.isAdmin && (
-            <motion.div 
-              whileTap={{ scale: 0.95 }}
-              onClick={() => logic.setIsStatsExpanded(!logic.isStatsExpanded)}
-              className={`flex items-center gap-4 bg-white/[0.04] px-4 py-2 border transition-all cursor-pointer rounded-lg shrink-0 ${logic.isStatsExpanded ? 'border-signal-cyan shadow-[0_0_20px_rgba(0,242,255,0.15)]' : 'border-white/10 hover:border-white/20'}`}
-            >
-              <div className="flex items-center gap-2">
-                <Activity className={`w-5 h-5 ${logic.playerHp < 25 ? 'text-signal-hazard animate-pulse' : 'text-signal-cyan'}`} />
-                <span className="text-lg font-mono font-bold text-white tracking-tighter chromatic-text">{logic.playerHp}%</span>
-              </div>
-              <div className="w-px h-4 bg-white/10" />
-              <div className="flex items-center gap-2">
-                <Coins className="w-5 h-5 text-signal-amber" />
-                <span className="text-lg font-mono font-bold text-white tracking-tighter">{logic.playerGold}</span>
-              </div>
-              {logic.isStatsExpanded ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
-            </motion.div>
-          )}
-
-          {logic.isAdmin && (
-            <div className="px-2 py-1.5 bg-signal-amber/10 border border-signal-amber/30 rounded-lg flex items-center gap-1.5 flex-shrink-0">
-               <ShieldAlert className="w-3.5 h-3.5 text-signal-amber" />
-               <span className="text-[9px] font-black uppercase tracking-widest text-signal-amber">CONSOLE</span>
-            </div>
-          )}
         </div>
 
-        {/* EXPANDED STATS GRID */}
-        {!logic.isAdmin && (
-          <AnimatePresence>
-            {logic.isStatsExpanded && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }} 
-                animate={{ height: 'auto', opacity: 1 }} 
-                exit={{ height: 0, opacity: 0 }} 
-                className="bg-black/90 border-t border-white/5 z-50 overflow-hidden"
-              >
-                <div className="p-4 grid grid-cols-4 gap-2 md:gap-4 md:p-6">
-                  {[
-                    { icon: Zap, label: 'MANA', val: logic.playerMana, color: 'text-signal-cyan' },
-                    { icon: Shield, label: 'ZBRN', val: logic.playerArmor, color: 'text-white/30' },
-                    { icon: Sparkles, label: 'STST', val: logic.playerLuck, color: 'text-signal-amber/60' },
-                    { icon: Wind, label: 'KYSL', val: logic.playerOxygen + '%', color: 'text-signal-cyan' },
-                  ].map((stat) => (
-                    <div key={stat.label} className="tactical-card p-2 flex flex-col items-center bg-white/[0.02] border-white/5">
-                      <stat.icon className={`w-4 h-4 ${stat.color} mb-1`} />
-                      <span className="text-[7px] font-mono font-bold text-white/30 tracking-[0.2em] uppercase">{stat.label}</span>
-                      <span className="font-mono text-white font-black text-xs tracking-widest">{stat.val}</span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-      </header>
-
-      <main className="flex-1 relative z-0 bg-[#0a0b0d] overflow-hidden">
-        <AnimatePresence mode="wait">
-          {logic.activeTab === Tab.SCANNER && (
-            <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-              <Scanner onScanCode={logic.handleScanCode} isAIThinking={logic.isAIThinking} isPaused={logic.isScannerPaused} />
-            </motion.div>
-          )}
-          {logic.activeTab === Tab.INVENTORY && (
-            <motion.div key="inventory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-              <InventoryView inventory={logic.inventory} loadingInventory={logic.loadingInventory} isRefreshing={logic.isRefreshing} isAdmin={logic.isAdmin} isNight={logic.isNight} adminNightOverride={logic.adminNightOverride} playerClass={logic.playerClass} giftTarget={null} onRefresh={logic.handleRefreshDatabase} onToggleNightOverride={() => logic.setAdminNightOverride(prev => prev === null ? true : prev === true ? false : null)} onCancelGift={() => {}} onItemClick={logic.handleOpenInventoryItem} getAdjustedItem={logic.getAdjustedItem} onToggleLock={logic.handleToggleLock} onDeleteItem={logic.handleDeleteEvent} />
-            </motion.div>
-          )}
-          {logic.activeTab === Tab.GENERATOR && (
-            <motion.div key="generator" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-              <Generator onSaveCard={logic.handleSaveEvent} onDelete={logic.handleDeleteEvent} userEmail={logic.userEmail || ''} initialData={logic.editingEvent} onClearData={() => logic.setEditingEvent(null)} />
-            </motion.div>
-          )}
-          {logic.activeTab === Tab.ROOM && (
-            <motion.div key="room" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-              <Room 
-                userEmail={logic.userEmail} 
-                roomState={logic.roomState} 
-                onCreateRoom={() => {}} 
-                onJoinRoom={() => {}} 
-                onLeaveRoom={logic.handleLeaveRoom} 
-                onSendMessage={logic.handleSendMessage} 
-                onUpdateNickname={() => {}} 
-                onScanFriend={() => {}} 
-                onReceiveGift={() => {}} 
-                onInitiateGift={() => {}} 
-              />
-            </motion.div>
-          )}
-          {logic.activeTab === Tab.SETTINGS && (
-             <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 p-8 md:p-10 flex flex-col bg-[#0a0b0d]">
-                <AnimatePresence>{showManual && <ManualView onBack={() => setShowManual(false)} />}</AnimatePresence>
-                <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-4">
-                  <h2 className="text-3xl font-black uppercase tracking-tighter text-white font-sans chromatic-text">Systém/{logic.roomState.nickname}</h2>
-                  <Target className="w-6 h-6 text-signal-cyan/30" />
-                </div>
-                <div className="space-y-6 overflow-y-auto no-scrollbar pb-10">
-                  {/* QR CODE - Hidden for Admin */}
-                  {!logic.isAdmin && (
-                    <div className="tactical-card p-8 border-signal-cyan/20 bg-white/[0.02] text-center shadow-[inset_0_0_30px_rgba(0,242,255,0.05)]">
-                      <div className="corner-accent top-left !border-2"></div>
-                      <div className="corner-accent bottom-right !border-2"></div>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=friend:${logic.userEmail}&color=00f2ff&bgcolor=0a0b0d`} className="mx-auto mb-6 border border-signal-cyan/20 p-2 bg-black w-32 h-32" />
-                      <p className="text-[9px] font-mono font-bold tracking-[0.4em] uppercase text-signal-cyan">tvůj QR_ID pro přátelé!</p>
-                    </div>
-                  )}
-
-                  {/* SETTINGS CARD */}
-                  <div className="tactical-card p-6 border-white/10 bg-white/[0.02]">
-                    <div className="flex items-center gap-2 border-b border-white/5 pb-3 mb-4">
-                        <Smartphone className="w-4 h-4 text-signal-cyan" />
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-white">Konfigurace_Rozhraní</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                        <button 
-                            onClick={logic.handleToggleSound}
-                            className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${logic.soundEnabled ? 'bg-signal-cyan/10 border-signal-cyan text-signal-cyan' : 'bg-white/5 border-white/10 text-white/30'}`}
-                        >
-                            {logic.soundEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
-                            <span className="text-[9px] font-black uppercase tracking-widest">Zvuk: {logic.soundEnabled ? 'ON' : 'OFF'}</span>
-                        </button>
-
-                        <button 
-                            onClick={logic.handleToggleVibration}
-                            className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${logic.vibrationEnabled ? 'bg-signal-amber/10 border-signal-amber text-signal-amber' : 'bg-white/5 border-white/10 text-white/30'}`}
-                        >
-                            {logic.vibrationEnabled ? <Vibrate className="w-6 h-6" /> : <VibrateOff className="w-6 h-6" />}
-                            <span className="text-[9px] font-black uppercase tracking-widest">Haptika: {logic.vibrationEnabled ? 'ON' : 'OFF'}</span>
-                        </button>
-                    </div>
-                  </div>
-
-                  {/* ADMIN SERVER DIAGNOSTICS */}
-                  {logic.isAdmin && (
-                    <div className="tactical-card p-6 border-signal-amber/30 bg-white/[0.02] space-y-4">
-                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                         <div className="flex items-center gap-2">
-                           <Server className="w-4 h-4 text-signal-amber" />
-                           <h3 className="text-[10px] font-black uppercase tracking-widest text-white">Diagnostika_Serveru</h3>
-                         </div>
-                         <button onClick={runDiagnostics} className="p-2 bg-signal-amber/10 hover:bg-signal-amber/20 rounded-md transition-all">
-                           <RefreshCcw className="w-4 h-4 text-signal-amber" />
-                         </button>
-                      </div>
-                      
-                      <div className="bg-black/60 p-4 border border-white/5 h-32 overflow-y-auto no-scrollbar font-mono text-[9px] leading-relaxed text-signal-cyan/80">
-                         {serverStatusLog.length === 0 ? "> Systém v pohotovostním režimu." : serverStatusLog.map((log, i) => (
-                           <div key={i}>{log}</div>
-                         ))}
-                      </div>
-
-                      <div className="flex items-center gap-4 pt-2">
-                         <div className="flex items-center gap-2">
-                           <div className={`w-2 h-2 rounded-full ${logic.isServerReady ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                           <span className="text-[8px] font-bold text-white/40 uppercase">Backend</span>
-                         </div>
-                         <div className="flex items-center gap-2">
-                           <div className={`w-2 h-2 rounded-full ${logic.isServerReady ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                           <span className="text-[8px] font-bold text-white/40 uppercase">MongoDB_Atlas</span>
-                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <button onClick={() => setShowManual(true)} className="tactical-card w-full p-6 flex items-center justify-between hover:border-signal-cyan/40 transition-all group active:scale-[0.98]">
-                    <div className="flex items-center gap-4">
-                      <BookOpen className="w-6 h-6 text-signal-amber" />
-                      <span className="font-bold uppercase text-xs tracking-widest text-white font-sans">Operační_Manuál</span>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-white/10 group-hover:text-signal-cyan transition-all" />
-                  </button>
-                  <button onClick={logic.handleLogout} className="button-primary !bg-signal-hazard/10 !text-signal-hazard border border-signal-hazard/30 font-black uppercase text-[10px] tracking-[0.3em] mt-4 py-4">Odhlásit se!</button>
-                </div>
-             </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      <nav className="flex-none bg-black border-t border-white/10 px-4 py-4 safe-area-bottom z-[100] backdrop-blur-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-        <div className="flex justify-around items-center h-12 gap-2">
-          {!logic.isAdmin && (
-            <button onClick={() => logic.setActiveTab(Tab.SCANNER)} className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all rounded-xl relative ${logic.activeTab === Tab.SCANNER ? 'text-signal-cyan' : 'opacity-30 hover:opacity-100 text-white'}`}>
-              <ScanLine className="w-6 h-6" />
-              <span className="text-[8px] font-black uppercase tracking-widest font-sans">Scan</span>
-              {logic.activeTab === Tab.SCANNER && <motion.div layoutId="nav-glow" className="absolute -bottom-4 left-1/4 right-1/4 h-0.5 bg-signal-cyan shadow-[0_0_15px_#00f2ff]" />}
-            </button>
-          )}
-          <button onClick={() => logic.setActiveTab(Tab.INVENTORY)} className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all rounded-xl relative ${logic.activeTab === Tab.INVENTORY ? 'text-signal-cyan' : 'opacity-30 hover:opacity-100 text-white'}`}>
-            <Layers className="w-6 h-6" />
-            <span className="text-[8px] font-black uppercase tracking-widest font-sans">Databáze</span>
-            {logic.activeTab === Tab.INVENTORY && <motion.div layoutId="nav-glow" className="absolute -bottom-4 left-1/4 right-1/4 h-0.5 bg-signal-cyan shadow-[0_0_15px_#00f2ff]" />}
-          </button>
-          {logic.isAdmin && (
-            <button onClick={() => logic.setActiveTab(Tab.GENERATOR)} className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all rounded-xl relative ${logic.activeTab === Tab.GENERATOR ? 'text-signal-cyan' : 'opacity-30 hover:opacity-100 text-white'}`}>
-              <SquarePen className="w-6 h-6" />
-              <span className="text-[8px] font-black uppercase tracking-widest font-sans">Fabrikace</span>
-              {logic.activeTab === Tab.GENERATOR && <motion.div layoutId="nav-glow" className="absolute -bottom-4 left-1/4 right-1/4 h-0.5 bg-signal-cyan shadow-[0_0_15px_#00f2ff]" />}
-            </button>
-          )}
-          {!logic.isAdmin && (
-            <button onClick={() => logic.setActiveTab(Tab.ROOM)} className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all rounded-xl relative ${logic.activeTab === Tab.ROOM ? 'text-signal-cyan' : 'opacity-30 hover:opacity-100 text-white'}`}>
-              <Box className="w-6 h-6" />
-              <span className="text-[8px] font-black uppercase tracking-widest font-sans">Jednotka</span>
-              {logic.activeTab === Tab.ROOM && <motion.div layoutId="nav-glow" className="absolute -bottom-4 left-1/4 right-1/4 h-0.5 bg-signal-cyan shadow-[0_0_15px_#00f2ff]" />}
-            </button>
-          )}
-          <button onClick={() => logic.setActiveTab(Tab.SETTINGS)} className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all rounded-xl relative ${logic.activeTab === Tab.SETTINGS ? 'text-signal-cyan' : 'opacity-30 hover:opacity-100 text-white'}`}>
-            <Settings className="w-6 h-6" />
-            <span className="text-[8px] font-black uppercase tracking-widest font-sans">Systém</span>
-            {logic.activeTab === Tab.SETTINGS && <motion.div layoutId="nav-glow" className="absolute -bottom-4 left-1/4 right-1/4 h-0.5 bg-signal-cyan shadow-[0_0_15px_#00f2ff]" />}
-          </button>
+        {/* Improved Stats Grid - 2 Rows for better visibility */}
+        <div className="flex-1 flex flex-col gap-1 p-1 bg-black/40">
+            <div className="flex-1 grid grid-cols-3 gap-1">
+                <StatSlot icon={<Heart className="w-4 h-4" />} value={logic.playerHp} color="#ef4444" label="HP" />
+                <StatSlot icon={<Zap className="w-4 h-4" />} value={logic.playerMana} color="#00f2ff" label="MANA" />
+                <StatSlot icon={<Coins className="w-4 h-4" />} value={logic.playerGold} color="#fbbf24" label="GOLD" />
+            </div>
+            <div className="flex-1 grid grid-cols-3 gap-1">
+                <StatSlot icon={<Shield className="w-3 h-3" />} value={logic.playerArmor} color="#a1a1aa" label="ARMOR" small />
+                <StatSlot icon={<Star className="w-3 h-3" />} value={logic.playerLuck} color="#c084fc" label="LUCK" small />
+                <StatSlot icon={<Wind className="w-3 h-3" />} value={logic.playerOxygen} color="#22d3ee" label="O2" small />
+            </div>
         </div>
-      </nav>
+      </div>
+
+      <div className="flex-1 relative overflow-hidden">
+        <ModuleErrorBoundary>
+          <Suspense fallback={<TabLoader />}>
+            <AnimatePresence mode="wait">
+              {logic.activeTab === Tab.SCANNER && (
+                <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                  <Scanner onScanCode={logic.handleScanCode} isAIThinking={logic.isAIThinking} isPaused={logic.isScannerPaused} />
+                </motion.div>
+              )}
+
+              {logic.activeTab === Tab.INVENTORY && (
+                <motion.div key="inventory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                  <InventoryView 
+                    inventory={logic.inventory} loadingInventory={false} isRefreshing={logic.isRefreshing} 
+                    isAdmin={logic.isAdmin} isNight={logic.isNight} adminNightOverride={logic.adminNightOverride}
+                    playerClass={logic.playerClass} giftTarget={logic.giftTarget} onRefresh={logic.handleRefreshDatabase} 
+                    onItemClick={logic.handleOpenInventoryItem} 
+                  />
+                </motion.div>
+              )}
+
+              {logic.activeTab === Tab.GENERATOR && (
+                <motion.div key="generator" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                  <Generator 
+                    onSaveCard={logic.handleSaveEvent} userEmail={logic.userEmail || ''} initialData={logic.editingEvent}
+                    onClearData={() => logic.setEditingEvent(null)} onDelete={logic.handleDeleteEvent}
+                  />
+                </motion.div>
+              )}
+
+              {logic.activeTab === Tab.ROOM && (
+                <motion.div key="room" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                  <Room 
+                    roomState={logic.roomState} inventory={logic.inventory} playerHp={logic.playerHp} scanLog={logic.scanLog}
+                    onLeaveRoom={logic.handleLeaveRoom} onSendMessage={logic.handleSendMessage} onStartGame={logic.handleStartGame}
+                    onInspectItem={logic.handleInspectItem} onSwapItems={logic.handleSwapItems} userEmail={logic.userEmail || undefined}
+                  />
+                </motion.div>
+              )}
+
+              {logic.activeTab === Tab.SETTINGS && (
+                <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                  <SettingsView 
+                    onBack={() => logic.setActiveTab(Tab.SCANNER)} onLogout={logic.handleLogout}
+                    soundEnabled={logic.soundEnabled} vibrationEnabled={logic.vibrationEnabled}
+                    onToggleSound={logic.handleToggleSound} onToggleVibration={logic.handleToggleVibration} userEmail={logic.userEmail}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Suspense>
+        </ModuleErrorBoundary>
+      </div>
+
+      <div className="h-20 bg-zinc-950 border-t-2 border-signal-cyan/40 flex items-center justify-around px-6 pb-2 relative z-50 shadow-[0_-12px_35px_rgba(0,242,255,0.25)]">
+        <NavButton active={logic.activeTab === Tab.SCANNER} onClick={() => logic.setActiveTab(Tab.SCANNER)} icon={<Scan />} label="Sken" />
+        <NavButton active={logic.activeTab === Tab.INVENTORY} onClick={() => logic.setActiveTab(Tab.INVENTORY)} icon={<Box />} label="Batoh" />
+        {logic.isAdmin && <NavButton active={logic.activeTab === Tab.GENERATOR} onClick={() => logic.setActiveTab(Tab.GENERATOR)} icon={<Hammer />} label="Fab" />}
+        <NavButton active={logic.activeTab === Tab.ROOM} onClick={() => logic.setActiveTab(Tab.ROOM)} icon={<Users />} label="Tým" />
+        <NavButton active={logic.activeTab === Tab.SETTINGS} onClick={() => logic.setActiveTab(Tab.SETTINGS)} icon={<SettingsIcon />} label="Sys" />
+      </div>
 
       <AnimatePresence>
         {logic.currentEvent && (
-          <EventCard event={logic.currentEvent} onClose={logic.closeEvent} onSave={() => logic.handleSaveEvent(logic.currentEvent!)} onUse={() => logic.handleUseEvent(logic.currentEvent!)} onResolveDilemma={logic.handleResolveDilemma} isSaved={logic.inventory.some(i => i.id === logic.currentEvent?.id)} onPlayerDamage={logic.handleHpChange} />
+          <EventCard 
+            event={logic.currentEvent} 
+            onClose={logic.closeEvent} 
+            onSave={() => logic.handleSaveEvent(logic.currentEvent!)}
+            onUse={() => logic.handleUseEvent(logic.currentEvent!)} 
+            onResolveDilemma={logic.handleResolveDilemma}
+            isSaved={logic.inventory.some(i => i.id === logic.currentEvent?.id)}
+          />
         )}
-        {logic.activeMerchant && logic.userEmail && <MerchantScreen merchant={logic.activeMerchant} userGold={logic.playerGold} adminEmail={logic.ADMIN_EMAIL} inventory={logic.inventory} playerClass={logic.playerClass} onClose={() => logic.setActiveMerchant(null)} onBuy={() => {}} onSell={() => {}} onAddFreeItem={() => {}} />}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {logic.notification && <Toast data={logic.notification} onClose={() => logic.setNotification(null)} />}
+      </AnimatePresence>
+
+      <style>{`
+        .stat-glow-box {
+          box-shadow: inset 0 0 10px var(--slot-color-alpha);
+          border-color: var(--slot-color-border);
+        }
+        .animate-spin-slow {
+          animation: spin 6s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
+
+const StatSlot: React.FC<{ icon: React.ReactNode, value: number, color: string, label: string, small?: boolean }> = ({ icon, value, color, label, small }) => (
+  <div 
+    className={`flex flex-col items-center justify-center rounded-lg border bg-black/60 transition-all stat-glow-box ${small ? 'py-0.5' : 'py-1'}`}
+    style={{ 
+        '--slot-color-alpha': `${color}15`, 
+        '--slot-color-border': `${color}40` 
+    } as any}
+  >
+    <div className="flex items-center gap-1.5">
+        <div style={{ color }}>{icon}</div>
+        <span className={`${small ? 'text-xs' : 'text-sm'} font-black font-mono tracking-tighter text-white drop-shadow-sm`}>
+            {value}
+        </span>
+    </div>
+    <span className="text-[6px] font-black uppercase tracking-[0.2em] opacity-50 text-white leading-none mt-0.5">{label}</span>
+  </div>
+);
+
+const NavButton: React.FC<{ active: boolean, onClick: () => void, icon: React.ReactNode, label: string }> = ({ active, onClick, icon, label }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all duration-300 ${active ? 'text-signal-cyan scale-110' : 'text-zinc-500'}`}>
+    <div className={`p-2 rounded-xl transition-colors ${active ? 'bg-signal-cyan/10 border border-signal-cyan/20' : ''}`}>{icon}</div>
+    <span className="text-[8px] font-black uppercase tracking-widest">{label}</span>
+  </button>
+);
 
 export default App;
