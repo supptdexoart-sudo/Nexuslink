@@ -204,17 +204,17 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                         <h2 className="text-3xl font-display font-black text-white uppercase tracking-wider">{merchant.title}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] bg-neon-purple/20 text-neon-purple px-2 py-0.5 rounded border border-neon-purple/50 font-bold uppercase">Obchodník</span>
-                            <span className="text-xs text-zinc-500 font-mono">ID: {merchant.id}</span>
+                            <span className="text-xs text-zinc-200 font-mono font-bold tracking-wider">ID: {merchant.id}</span>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 bg-zinc-900 rounded-full text-white hover:bg-zinc-800">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
-                <p className="text-sm text-zinc-400 font-serif italic mb-4">{merchant.description}</p>
+                <p className="text-sm text-zinc-200 font-serif italic mb-4 leading-relaxed">{merchant.description}</p>
                 
                 <div className="flex items-center justify-between bg-zinc-900 p-3 rounded-xl border border-zinc-800 mb-4">
-                    <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Váš zůstatek</span>
+                    <span className="text-xs text-zinc-300 font-bold uppercase tracking-widest">Váš zůstatek</span>
                     <div className="flex items-center gap-2">
                         <Coins className="w-5 h-5 text-yellow-500" />
                         <span className="text-xl font-mono font-bold text-white">{userGold}</span>
@@ -223,16 +223,16 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
 
                 {/* TABS */}
                 {merchant.canSellToMerchant && (
-                    <div className="flex bg-zinc-900 p-1 rounded-lg">
+                    <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
                         <button 
                             onClick={() => setActiveTab('buy')}
-                            className={`flex-1 py-2 text-xs font-bold uppercase rounded-md transition-all ${activeTab === 'buy' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            className={`flex-1 py-2 text-xs font-bold uppercase rounded-md transition-all ${activeTab === 'buy' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'}`}
                         >
                             Nákup Zboží
                         </button>
                         <button 
                             onClick={() => setActiveTab('sell')}
-                            className={`flex-1 py-2 text-xs font-bold uppercase rounded-md transition-all ${activeTab === 'sell' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            className={`flex-1 py-2 text-xs font-bold uppercase rounded-md transition-all ${activeTab === 'sell' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'}`}
                         >
                             Prodej (Výkup)
                         </button>
@@ -246,12 +246,12 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                     loading ? (
                         <div className="flex flex-col items-center justify-center h-40 gap-4">
                             <Loader2 className="w-8 h-8 text-neon-blue animate-spin" />
-                            <p className="text-xs text-zinc-500 uppercase tracking-widest">Naskladňování zboží...</p>
+                            <p className="text-xs text-zinc-400 uppercase tracking-widest font-bold">Naskladňování zboží...</p>
                         </div>
                     ) : shopItems.length === 0 ? (
                         <div className="text-center py-10 opacity-50">
                             <ShoppingBag className="w-16 h-16 mx-auto mb-4 text-zinc-600" />
-                            <p>Tento obchodník má momentálně vyprodáno.</p>
+                            <p className="text-zinc-300">Tento obchodník má momentálně vyprodáno.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-4 pb-20">
@@ -274,10 +274,10 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                                             <div>
                                                 <h3 className="font-bold text-white text-lg leading-tight">{item.title}</h3>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">{item.type} • {item.rarity}</span>
+                                                    <span className="text-[10px] text-zinc-300 uppercase tracking-wider font-bold">{item.type} • {item.rarity}</span>
                                                     {/* Stock Indicator */}
                                                     <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase border ${
-                                                        isOutOfStock ? 'bg-red-900/20 text-red-500 border-red-900/40' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                                                        isOutOfStock ? 'bg-red-900/20 text-red-500 border-red-900/40' : 'bg-zinc-800 text-zinc-200 border-zinc-700'
                                                     }`}>
                                                         <Package className="w-3 h-3" />
                                                         {isOutOfStock ? 'Vyprodáno' : `Skladem: ${currentStock}`}
@@ -288,7 +288,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                                             {/* PRICE DISPLAY */}
                                             <div className="flex flex-col items-end">
                                                 {discountType && (
-                                                    <div className="flex items-center gap-1 text-[10px] text-zinc-500 line-through decoration-red-500 mb-0.5">
+                                                    <div className="flex items-center gap-1 text-[10px] text-zinc-400 line-through decoration-red-500 mb-0.5">
                                                         <Coins className="w-3 h-3" /> {item.price}
                                                     </div>
                                                 )}
@@ -302,11 +302,11 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                                             </div>
                                         </div>
                                         
-                                        <p className="pl-3 text-xs text-zinc-400 line-clamp-2 font-serif">{item.description}</p>
+                                        <p className="pl-3 text-xs text-zinc-100 line-clamp-2 font-serif leading-relaxed">{item.description}</p>
                                         
                                         {/* Rogue Tip */}
                                         {playerClass === PlayerClass.ROGUE && currentStock >= 2 && (
-                                            <div className="pl-3 flex items-center gap-1 text-[9px] text-green-600 font-bold uppercase">
+                                            <div className="pl-3 flex items-center gap-1 text-[9px] text-green-500 font-bold uppercase">
                                                 <Footprints className="w-3 h-3" /> Šance na krádež ({config.rogueStealChance}%)
                                             </div>
                                         )}
@@ -319,7 +319,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                                                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
                                                 : canAfford 
                                                     ? 'bg-neon-blue text-black hover:bg-white shadow-[0_0_10px_rgba(0,243,255,0.3)]' 
-                                                    : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                                                    : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
                                             }`}
                                         >
                                             {isOutOfStock ? (
@@ -327,7 +327,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                                                     <Ban className="w-4 h-4" /> Vyprodáno
                                                 </>
                                             ) : canAfford ? (
-                                                'Koupit'
+                                                'Koupit Asset'
                                             ) : (
                                                 'Nedostatek Kreditů'
                                             )}
@@ -342,7 +342,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                     <div className="pb-20">
                         <div className="mb-4 bg-zinc-900 border border-zinc-800 p-3 rounded-lg flex items-center gap-3">
                             <ArrowRightLeft className="w-5 h-5 text-green-500" />
-                            <p className="text-xs text-zinc-400">Vyberte předmět z batohu, který chcete nabídnout obchodníkovi.</p>
+                            <p className="text-xs text-zinc-200 font-bold leading-relaxed">Vyberte předmět z batohu, který chcete nabídnout obchodníkovi.</p>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -353,14 +353,14 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                                     className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl flex flex-col gap-2 relative overflow-hidden hover:border-green-500/50 transition-colors text-left"
                                 >
                                     <div className="flex justify-between items-start w-full">
-                                        <Package className="w-5 h-5 text-zinc-500" />
-                                        <span className="text-[9px] font-bold uppercase bg-black/40 px-1.5 rounded text-zinc-400">{item.rarity}</span>
+                                        <Package className="w-5 h-5 text-zinc-400" />
+                                        <span className="text-[9px] font-bold uppercase bg-black/40 px-1.5 rounded text-zinc-200 border border-white/10">{item.rarity}</span>
                                     </div>
-                                    <h4 className="font-bold text-white text-xs line-clamp-1">{item.title}</h4>
+                                    <h4 className="font-bold text-white text-xs line-clamp-1 uppercase tracking-tight">{item.title}</h4>
                                 </button>
                             ))}
                             {(!inventory || inventory.filter(i => i.type === GameEventType.ITEM).length === 0) && (
-                                <p className="col-span-2 text-center text-zinc-600 text-xs py-10">Váš batoh je prázdný.</p>
+                                <p className="col-span-2 text-center text-zinc-500 text-xs py-10 uppercase font-bold tracking-widest">Váš batoh je prázdný.</p>
                             )}
                         </div>
                     </div>
@@ -374,7 +374,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                         initial={{ opacity: 0 }} 
                         animate={{ opacity: 1 }} 
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6"
+                        className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6"
                     >
                         <motion.div 
                             initial={{ scale: 0.9, y: 20 }}
@@ -382,10 +382,10 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                             exit={{ scale: 0.9, y: 20 }}
                             className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm text-center relative overflow-hidden"
                         >
-                            <button onClick={() => setAppraisingItem(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
+                            <button onClick={() => setAppraisingItem(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white"><X className="w-5 h-5"/></button>
                             
-                            <h3 className="text-xl font-bold text-white mb-1">{appraisingItem.title}</h3>
-                            <p className="text-xs text-zinc-500 font-mono mb-6 uppercase">ID: {appraisingItem.id}</p>
+                            <h3 className="text-xl font-bold text-white mb-1 uppercase tracking-tighter">{appraisingItem.title}</h3>
+                            <p className="text-xs text-zinc-300 font-mono mb-6 uppercase tracking-wider font-bold">ID: {appraisingItem.id}</p>
 
                             {appraisalStatus === 'thinking' && (
                                 <div className="py-8 flex flex-col items-center gap-4">
@@ -397,28 +397,28 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                             {appraisalStatus === 'reject' && (
                                 <div className="py-4 flex flex-col items-center gap-4">
                                     <Ban className="w-12 h-12 text-red-500" />
-                                    <div className="bg-zinc-800 p-4 rounded-xl border-l-4 border-red-500 text-left w-full">
-                                        <p className="text-sm italic text-zinc-300">"Tohle? To je bezcenný krám. O to nemám zájem. Přines mi něco pořádného, co mám na seznamu."</p>
+                                    <div className="bg-black/60 p-4 rounded-xl border-l-4 border-red-500 text-left w-full border border-zinc-800">
+                                        <p className="text-sm italic text-zinc-100 leading-relaxed font-serif">"Tohle? To je bezcenný krám. O to nemám zájem. Přines mi něco pořádného, co mám na seznamu."</p>
                                     </div>
-                                    <button onClick={() => setAppraisingItem(null)} className="w-full py-3 bg-zinc-800 text-white font-bold uppercase rounded-lg">Zpět</button>
+                                    <button onClick={() => setAppraisingItem(null)} className="w-full py-3 bg-zinc-800 text-white font-bold uppercase rounded-lg border border-zinc-700 tracking-widest text-xs">Zpět k Batohu</button>
                                 </div>
                             )}
 
                             {appraisalStatus === 'offer' && (
                                 <div className="py-4 flex flex-col items-center gap-4">
                                     <DollarSign className="w-12 h-12 text-green-500" />
-                                    <div className="bg-zinc-800 p-4 rounded-xl border-l-4 border-green-500 text-left w-full">
-                                        <p className="text-sm italic text-zinc-300 mb-2">"Hmm, zajímavé. O tohle bych zájem měl."</p>
-                                        <div className="flex justify-between items-center bg-black/30 p-2 rounded">
-                                            <span className="text-xs font-bold uppercase text-zinc-500">Nabídka:</span>
+                                    <div className="bg-black/60 p-4 rounded-xl border-l-4 border-green-500 text-left w-full border border-zinc-800">
+                                        <p className="text-sm italic text-zinc-200 mb-4 font-serif leading-relaxed">"Hmm, zajímavé. O tohle bych zájem měl."</p>
+                                        <div className="flex justify-between items-center bg-black/50 p-3 rounded border border-zinc-800">
+                                            <span className="text-xs font-bold uppercase text-zinc-300 tracking-wider">Nabídka:</span>
                                             <span className="text-xl font-mono font-bold text-green-500 flex items-center gap-1">
                                                 {offeredPrice} <Coins className="w-4 h-4"/>
                                             </span>
                                         </div>
                                     </div>
                                     <div className="flex gap-2 w-full">
-                                        <button onClick={() => setAppraisingItem(null)} className="flex-1 py-3 bg-zinc-800 text-zinc-400 font-bold uppercase rounded-lg">Odmítnout</button>
-                                        <button onClick={confirmSell} className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-bold uppercase rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.4)]">PRODAT</button>
+                                        <button onClick={() => setAppraisingItem(null)} className="flex-1 py-3 bg-zinc-800 text-zinc-300 font-bold uppercase rounded-lg border border-zinc-700 text-xs tracking-widest">Odmítnout</button>
+                                        <button onClick={confirmSell} className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-bold uppercase rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.4)] text-xs tracking-widest">PRODAT</button>
                                     </div>
                                 </div>
                             )}

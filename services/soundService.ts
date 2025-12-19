@@ -6,6 +6,27 @@ let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 
+// Settings State
+let isSoundEnabled = localStorage.getItem('nexus_sound_enabled') !== 'false'; // Default true
+let isVibrationEnabled = localStorage.getItem('nexus_vibration_enabled') !== 'false'; // Default true
+
+export const getSoundStatus = () => isSoundEnabled;
+export const getVibrationStatus = () => isVibrationEnabled;
+
+export const toggleSoundSystem = (enabled: boolean) => {
+    isSoundEnabled = enabled;
+    localStorage.setItem('nexus_sound_enabled', String(enabled));
+    // If turning on, play a test sound
+    if (enabled) playSound('click');
+};
+
+export const toggleVibrationSystem = (enabled: boolean) => {
+    isVibrationEnabled = enabled;
+    localStorage.setItem('nexus_vibration_enabled', String(enabled));
+    // If turning on, vibrate
+    if (enabled) vibrate(50);
+};
+
 // Inicializace audio kontextu
 const initAudio = () => {
   if (!audioCtx) {
@@ -29,6 +50,7 @@ const initAudio = () => {
 };
 
 export const vibrate = (pattern: number | number[]) => {
+  if (!isVibrationEnabled) return;
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate(pattern);
   }
@@ -37,6 +59,7 @@ export const vibrate = (pattern: number | number[]) => {
 type SoundType = 'click' | 'scan' | 'error' | 'success' | 'heal' | 'damage' | 'message' | 'open' | 'siren';
 
 export const playSound = (type: SoundType) => {
+  if (!isSoundEnabled) return;
   try {
     const { ctx, master, noise } = initAudio();
     if (!ctx || !master) return;

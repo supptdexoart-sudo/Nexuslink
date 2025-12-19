@@ -149,7 +149,7 @@ const Room: React.FC<RoomProps> = ({
           return (
               <div className="flex flex-col gap-1">
                   <span>{text.split('|||')[0]}</span>
-                  <div className="flex items-center gap-1 text-[9px] text-zinc-400 bg-black/20 p-1 rounded w-fit">
+                  <div className="flex items-center gap-1 text-[9px] text-zinc-200 bg-black/40 p-1 rounded w-fit border border-white/10">
                       <PackageCheck className="w-3 h-3" />
                       <span>Obsahuje data</span>
                   </div>
@@ -164,8 +164,8 @@ const Room: React.FC<RoomProps> = ({
         <div className="bg-black/80 backdrop-blur-md border-b border-zinc-800">
             <div className="flex justify-between items-center p-4 pb-2">
                 <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-800">
-                     <User className="w-3 h-3 text-zinc-500" />
-                     <span className="text-xs font-mono text-zinc-300 font-bold">{roomState.nickname}</span>
+                     <User className="w-3 h-3 text-zinc-400" />
+                     <span className="text-xs font-mono text-zinc-100 font-bold">{roomState.nickname}</span>
                 </div>
                 {roomState.id && (
                     <button 
@@ -179,13 +179,13 @@ const Room: React.FC<RoomProps> = ({
             </div>
 
             <div className="flex px-2">
-                <button onClick={() => {setActiveTab('party'); playSound('click');}} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'party' ? 'border-neon-blue text-white' : 'border-transparent text-zinc-600'}`}>
+                <button onClick={() => {setActiveTab('party'); playSound('click');}} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'party' ? 'border-signal-amber text-white' : 'border-transparent text-zinc-400'}`}>
                     Tým ({roomState.members?.length || 1})
                 </button>
-                <button onClick={() => {setActiveTab('chat'); playSound('click');}} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'chat' ? 'border-neon-blue text-white' : 'border-transparent text-zinc-600'}`}>
+                <button onClick={() => {setActiveTab('chat'); playSound('click');}} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'chat' ? 'border-signal-amber text-white' : 'border-transparent text-zinc-400'}`}>
                     Chat
                 </button>
-                <button onClick={() => {setActiveTab('trade'); playSound('click');}} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'trade' ? 'border-neon-blue text-white' : 'border-transparent text-zinc-600'}`}>
+                <button onClick={() => {setActiveTab('trade'); playSound('click');}} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'trade' ? 'border-signal-amber text-white' : 'border-transparent text-zinc-400'}`}>
                     Burza
                 </button>
             </div>
@@ -196,29 +196,29 @@ const Room: React.FC<RoomProps> = ({
                 <div className="p-4 space-y-4">
                     {!roomState.isInRoom ? (
                         <div className="text-center py-10 opacity-50">
-                            <Users className="w-16 h-16 mx-auto mb-4 text-zinc-600" />
-                            <p>Hrajete v režimu sólo/offline.</p>
+                            <Users className="w-16 h-16 mx-auto mb-4 text-zinc-400" />
+                            <p className="text-zinc-300">Hrajete v režimu sólo/offline.</p>
                         </div>
                     ) : (
                         <>
                             <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 mb-4">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs font-bold uppercase text-zinc-500">Kód Místnosti</span>
-                                    <span className="text-neon-blue font-mono font-bold text-xl tracking-widest">{roomState.id}</span>
+                                    <span className="text-xs font-bold uppercase text-zinc-300">Kód Místnosti</span>
+                                    <span className="text-signal-amber font-mono font-bold text-xl tracking-widest">{roomState.id}</span>
                                 </div>
-                                <p className="text-[10px] text-zinc-600">Sdílejte tento kód s ostatními hráči u stolu.</p>
+                                <p className="text-[10px] text-zinc-400">Sdílejte tento kód s ostatními hráči u stolu.</p>
                             </div>
 
                             <div className="space-y-3">
                                 <h3 className="text-xs font-bold text-white uppercase tracking-widest pl-1">Stav Jednotky</h3>
                                 {roomState.members?.map((member, idx) => (
                                     <div key={idx} className="bg-black border border-zinc-800 p-4 rounded-xl flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 ${member.name === roomState.nickname ? 'border-neon-blue bg-neon-blue/10 text-neon-blue' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}>
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 ${member.name === roomState.nickname ? 'border-signal-amber bg-signal-amber/10 text-signal-amber' : 'border-zinc-700 bg-zinc-900 text-zinc-300'}`}>
                                             {member.name.substring(0, 2).toUpperCase()}
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex justify-between items-center mb-1">
-                                                <span className={`font-bold ${member.name === roomState.nickname ? 'text-white' : 'text-zinc-300'}`}>{member.name}</span>
+                                                <span className={`font-bold ${member.name === roomState.nickname ? 'text-white' : 'text-zinc-200'}`}>{member.name}</span>
                                                 <span className={`font-mono font-bold ${member.hp < 30 ? 'text-red-500' : 'text-green-500'}`}>{member.hp} HP</span>
                                             </div>
                                             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
@@ -239,16 +239,16 @@ const Room: React.FC<RoomProps> = ({
             {activeTab === 'chat' && (
                 roomState.isInRoom ? (
                     <div className="flex flex-col h-full">
-                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                         <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
                             {roomState.messages.map((msg) => {
                                 const isMe = msg.sender === roomState.nickname;
-                                if(msg.isSystem) return <div key={msg.id} className="text-center"><span className="text-[10px] bg-zinc-900 px-2 py-1 rounded text-zinc-500 font-mono">{msg.text}</span></div>;
+                                if(msg.isSystem) return <div key={msg.id} className="text-center"><span className="text-[10px] bg-zinc-900 px-2 py-1 rounded text-zinc-300 font-mono font-bold border border-white/5">{msg.text}</span></div>;
                                 return (
                                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                         <div className="flex items-baseline gap-2 mb-1">
-                                            <span className={`text-[10px] font-bold ${isMe ? 'text-neon-purple' : 'text-zinc-400'}`}>{msg.sender}</span>
+                                            <span className={`text-[10px] font-bold ${isMe ? 'text-signal-cyan' : 'text-zinc-300'}`}>{msg.sender}</span>
                                         </div>
-                                        <div className={`p-3 rounded-xl text-sm max-w-[85%] break-words shadow-sm ${isMe ? 'bg-neon-purple text-white rounded-tr-none' : 'bg-zinc-800 text-zinc-200 rounded-tl-none'}`}>
+                                        <div className={`p-3 rounded-xl text-sm max-w-[85%] break-words shadow-sm ${isMe ? 'bg-signal-cyan/20 border border-signal-cyan/40 text-white rounded-tr-none' : 'bg-zinc-800 text-zinc-100 rounded-tl-none'}`}>
                                             {renderMessageText(msg.text)}
                                         </div>
                                     </div>
@@ -257,14 +257,14 @@ const Room: React.FC<RoomProps> = ({
                             <div ref={messagesEndRef} />
                          </div>
                          <form onSubmit={handleSendClick} className="p-3 bg-black border-t border-zinc-800 flex gap-2 pb-safe">
-                             <input type="text" value={newMessage} onChange={(e)=>setNewMessage(e.target.value)} placeholder="Napsat zprávu..." className="flex-1 bg-zinc-900 border-zinc-800 rounded-lg px-4 py-2 text-white outline-none focus:border-neon-purple" />
-                             <button type="submit" disabled={!newMessage.trim()} className="bg-neon-purple text-white p-2 rounded-lg hover:bg-fuchsia-600 transition-colors"><Send className="w-4 h-4"/></button>
+                             <input type="text" value={newMessage} onChange={(e)=>setNewMessage(e.target.value)} placeholder="Napsat zprávu..." className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-white outline-none focus:border-signal-cyan" />
+                             <button type="submit" disabled={!newMessage.trim()} className="bg-signal-cyan text-black p-2 rounded-lg hover:bg-white transition-colors"><Send className="w-4 h-4"/></button>
                          </form>
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-8 text-center">
+                    <div className="flex flex-col items-center justify-center h-full text-zinc-400 p-8 text-center">
                         <Activity className="w-12 h-12 mb-4 opacity-50" />
-                        <p>Chat je dostupný pouze v místnosti.</p>
+                        <p className="text-zinc-300">Chat je dostupný pouze v místnosti.</p>
                     </div>
                 )
             )}
@@ -274,19 +274,19 @@ const Room: React.FC<RoomProps> = ({
                     <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
                         <button 
                             onClick={onScanFriend}
-                            className="shrink-0 px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg flex items-center gap-2 text-xs font-bold uppercase hover:bg-zinc-800 whitespace-nowrap"
+                            className="shrink-0 px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg flex items-center gap-2 text-xs font-bold uppercase hover:bg-zinc-800 whitespace-nowrap text-white"
                         >
                             <QrCode className="w-4 h-4" /> + Přítel (QR)
                         </button>
                         {requests.length > 0 && (
-                            <div className="shrink-0 px-4 py-2 bg-neon-blue/10 border border-neon-blue/30 text-neon-blue rounded-lg text-xs font-bold uppercase flex items-center gap-2">
+                            <div className="shrink-0 px-4 py-2 bg-signal-cyan/10 border border-signal-cyan/30 text-signal-cyan rounded-lg text-xs font-bold uppercase flex items-center gap-2">
                                 <UserPlus className="w-4 h-4" /> {requests.length} Žádostí
                             </div>
                         )}
                     </div>
                     
                     {requests.map((req, i) => (
-                        <div key={i} className="mb-4 p-3 bg-zinc-900 border border-neon-blue/30 rounded-lg flex justify-between items-center animate-in fade-in slide-in-from-top-2">
+                        <div key={i} className="mb-4 p-3 bg-zinc-900 border border-signal-cyan/30 rounded-lg flex justify-between items-center animate-in fade-in slide-in-from-top-2">
                             <span className="text-xs text-white truncate max-w-[150px]">{req.fromEmail}</span>
                             <div className="flex gap-2">
                                 <button onClick={() => handleAcceptRequest(req.fromEmail)} className="p-1.5 bg-green-900/20 text-green-500 rounded hover:bg-green-900/40"><Check className="w-4 h-4"/></button>
@@ -304,21 +304,20 @@ const Room: React.FC<RoomProps> = ({
                         </div>
                     ) : (
                         <>
-                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Gift className="w-5 h-5 text-neon-purple" /> Poslat Kartu</h3>
+                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Gift className="w-5 h-5 text-signal-cyan" /> Poslat Kartu</h3>
                             
                             <div className="mb-6">
-                                <label className="text-[10px] text-zinc-500 font-bold uppercase mb-2 block">Příjemce (Přítel)</label>
+                                <label className="text-[10px] text-zinc-300 font-bold uppercase mb-2 block">Příjemce (Přítel)</label>
                                 <select 
                                     value={selectedFriend} 
                                     onChange={(e) => setSelectedFriend(e.target.value)}
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white text-sm outline-none focus:border-neon-purple"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white text-sm outline-none focus:border-signal-cyan"
                                 >
-                                    <option value="">-- Vybrat --</option>
-                                    {friends.filter(f => f !== userEmail).map(f => <option key={f} value={f}>{f}</option>)}
+                                    <option value="" className="bg-zinc-950 text-white">-- Vybrat --</option>
+                                    {friends.filter(f => f !== userEmail).map(f => <option key={f} value={f} className="bg-zinc-950 text-white">{f}</option>)}
                                 </select>
                             </div>
 
-                            {/* ZMĚNĚNO NA ODKAZ DO BATOHU */}
                             <button 
                                 onClick={handleGiftButtonClick}
                                 disabled={!selectedFriend}

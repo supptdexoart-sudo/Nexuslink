@@ -2,7 +2,6 @@
 export enum GameEventType {
   ITEM = 'PŘEDMĚT',
   ENCOUNTER = 'SETKÁNÍ',
-  LOCATION = 'LOKACE',
   TRAP = 'NÁSTRAHA',
   MERCHANT = 'OBCHODNÍK',
   DILEMA = 'DILEMA',
@@ -25,8 +24,8 @@ export interface Stat {
 export interface MerchantItemEntry {
   id: string;
   stock: number;
-  price?: number; // Cena za kterou hráč nakupuje
-  sellPrice?: number; // Cena za kterou hráč prodává (výkupní cena)
+  price?: number;
+  sellPrice?: number;
 }
 
 export interface DilemmaOption {
@@ -42,32 +41,44 @@ export interface BossPhase {
     triggerValue: number;
     name: string;
     description: string;
-    damageBonus: number; // Extra damage this turn/phase
+    damageBonus: number;
 }
 
-// NEW: Merchant Class Config
 export interface MerchantTradeConfig {
-    warriorDiscount: number; // % Discount for Warriors
-    clericDiscount: number; // % Discount for Clerics (on healing items)
-    mageDiscount: number; // % Discount for Mages (on consumables)
-    rogueStealChance: number; // % Chance to steal extra item
+    warriorDiscount: number;
+    clericDiscount: number;
+    mageDiscount: number;
+    rogueStealChance: number;
 }
 
-// NEW: Night Variant definition
+export interface TrapConfig {
+    difficulty: number; 
+    damage: number; 
+    disarmClass: PlayerClass | 'ANY'; 
+    successMessage: string;
+    failMessage: string;
+}
+
+export interface EnemyLoot {
+    goldReward: number;
+    xpReward: number;
+    dropItemChance: number; 
+    dropItemId?: string; 
+}
+
 export interface TimeVariant {
     enabled: boolean;
     nightTitle?: string;
     nightDescription?: string;
     nightType?: GameEventType;
-    nightStats?: Stat[]; // Stats that replace base stats at night
+    nightStats?: Stat[];
 }
 
-// NEW: Class Variant definition
 export interface ClassVariant {
     overrideTitle?: string;
     overrideDescription?: string;
     overrideType?: GameEventType;
-    bonusStats?: Stat[]; // These are ADDED to base stats or replace them? Let's say Replace for simplicity/control
+    bonusStats?: Stat[];
 }
 
 export interface GameEvent {
@@ -78,16 +89,26 @@ export interface GameEvent {
   stats?: Stat[]; 
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
   flavorText?: string;
+  
   isShareable?: boolean;
   isConsumable?: boolean; 
   canBeSaved?: boolean;   
+  isLocked?: boolean; // Bezpečnostní pojistka proti smazání
+  
   price?: number; 
+  
   canSellToMerchant?: boolean; 
-  tradeConfig?: MerchantTradeConfig; // NEW: Config for merchant bonuses
+  tradeConfig?: MerchantTradeConfig; 
+  merchantItems?: MerchantItemEntry[]; 
+  
   dilemmaScope?: 'INDIVIDUAL' | 'GLOBAL'; 
-  merchantItems?: MerchantItemEntry[];
-  dilemmaOptions?: DilemmaOption[];
+  dilemmaOptions?: DilemmaOption[]; 
+  
   bossPhases?: BossPhase[]; 
+  
+  trapConfig?: TrapConfig; 
+  enemyLoot?: EnemyLoot; 
+
   timeVariant?: TimeVariant; 
   classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 
   qrCodeUrl?: string; 

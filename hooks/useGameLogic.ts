@@ -1,15 +1,16 @@
-
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { GameEvent, GameEventType, DilemmaOption, RaidState, PlayerClass } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import { GameEvent, DilemmaOption, PlayerClass } from '../types';
 import * as apiService from '../services/apiService';
-import { playSound, vibrate } from '../services/soundService';
-import { Message } from '../components/Room';
+import { NEXUS_SEED_DATA } from '../services/seedData';
+import { playSound, vibrate, getSoundStatus, getVibrationStatus, toggleSoundSystem, toggleVibrationSystem } from '../services/soundService';
 import { ToastData, ToastType } from '../components/Toast';
+import * as geminiService from '../services/geminiService';
 
-// --- CONFIGURATION ---
 const ADMIN_EMAIL = 'zbynekbal97@gmail.com';
 const MAX_PLAYER_HP = 100;
+const MAX_PLAYER_MANA = 100;
 const INITIAL_GOLD = 100;
+const TURN_TIMEOUT_SECONDS = 15;
 
 export enum Tab {
   SCANNER = 'scanner',
@@ -19,65 +20,57 @@ export enum Tab {
   SETTINGS = 'settings'
 }
 
-type SyncStatus = 'synced' | 'offline' | 'restoring' | 'error' | 'guest';
-
-// Helper function moved here
 const isNightTime = (): boolean => {
     const hour = new Date().getHours();
     return hour >= 20 || hour < 6;
 };
 
 export const useGameLogic = () => {
-  // --- STATE ---
   const [userEmail, setUserEmail] = useState<string | null>(() => localStorage.getItem('nexus_current_user'));
   const isAdmin = userEmail === ADMIN_EMAIL;
   const isGuest = userEmail === 'guest';
 
   const [isServerReady, setIsServerReady] = useState(false);
-  const [isNight, setIsNight] = useState(isNightTime());
+  const isNight = isNightTime();
   const [adminNightOverride, setAdminNightOverride] = useState<boolean | null>(null);
-  const [showTimeInfo, setShowTimeInfo] = useState(false);
+  
+  const [soundEnabled, setSoundEnabled] = useState(getSoundStatus());
+  const [vibrationEnabled, setVibrationEnabled] = useState(getVibrationStatus());
 
   const [activeTab, setActiveTab] = useState<Tab>(() => (userEmail === ADMIN_EMAIL ? Tab.GENERATOR : Tab.SCANNER));
 
+  const [masterCatalog, setMasterCatalog] = useState<GameEvent[]>(() => {
+      const saved = localStorage.getItem('nexus_master_catalog');
+      return saved ? JSON.parse(saved) : NEXUS_SEED_DATA;
+  });
+
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null);
   const [editingEvent, setEditingEvent] = useState<GameEvent | null>(null);
+  const [eventSource, setEventSource] = useState<'scanner' | 'inventory' | null>(null);
+  const [actionTakenDuringEvent, setActionTakenDuringEvent] = useState(false);
   const [activeMerchant, setActiveMerchant] = useState<GameEvent | null>(null);
-  const [instantEffectValue, setInstantEffectValue] = useState<number | null>(null);
-  const [screenFlash, setScreenFlash] = useState<'red' | 'green' | null>(null);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [inventory, setInventory] = useState<GameEvent[]>([]);
+  const [screenFlash, setScreenFlash] = useState<'red' | 'green' | 'blue' | null>(null);
+  const [isStatsExpanded, setIsStatsExpanded] = useState(false);
+  const [isAIThinking, setIsAIThinking] = useState(false);
+
+  const [inventory, setInventory] = useState<GameEvent[]>(() => {
+      const saved = localStorage.getItem(`nexus_inv_${userEmail || 'guest'}`);
+      return saved ? JSON.parse(saved) : [];
+  });
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadingInventory, setLoadingInventory] = useState(false);
-  // Unused state removed: const [isFullscreen, setIsFullscreen] = useState(false);
-  // Replaced with just returning the toggle function logic
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
-  const [initialSyncComplete, setInitialSyncComplete] = useState(false);
-  
   const [notification, setNotification] = useState<ToastData | null>(null);
-  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [showEndTurnPrompt, setShowEndTurnPrompt] = useState(false);
+  const [turnCountdown, setTurnCountdown] = useState(TURN_TIMEOUT_SECONDS);
+  const [hasInitialRefreshDone, setHasInitialRefreshDone] = useState(false);
 
-  const [giftTarget, setGiftTarget] = useState<string | null>(null);
-  const [pendingGiftItem, setPendingGiftItem] = useState<GameEvent | null>(null);
-  const [giftTransferStatus, setGiftTransferStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
-  
-  const [activeRaid, setActiveRaid] = useState<RaidState | null>(null);
-  const [isRaidScreenVisible, setIsRaidScreenVisible] = useState(false);
-  const [showRaidIntro, setShowRaidIntro] = useState(false);
-  const prevRaidActiveRef = useRef<boolean>(false);
-
-  // PWA Install Prompt State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-
-  const [playerHp, setPlayerHp] = useState<number>(() => {
-    const saved = localStorage.getItem('nexus_player_hp');
-    return saved ? parseInt(saved, 10) : MAX_PLAYER_HP;
-  });
-
-  const [playerGold, setPlayerGold] = useState<number>(() => {
-    const saved = localStorage.getItem('nexus_player_gold');
-    return saved ? parseInt(saved, 10) : INITIAL_GOLD;
-  });
+  const [playerHp, setPlayerHp] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_hp') || String(MAX_PLAYER_HP)));
+  const [playerMana, setPlayerMana] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_mana') || String(MAX_PLAYER_MANA)));
+  const [playerGold, setPlayerGold] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_gold') || String(INITIAL_GOLD)));
+  const [playerArmor] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_armor') || '0'));
+  const [playerLuck] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_luck') || '5'));
+  const [playerOxygen] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_oxygen') || '100'));
 
   const [playerClass, setPlayerClass] = useState<PlayerClass | null>(() => {
       const saved = localStorage.getItem(`nexus_class_${userEmail || 'guest'}`);
@@ -85,637 +78,443 @@ export const useGameLogic = () => {
   });
 
   const [roomState, setRoomState] = useState<{
-      id: string;
-      isInRoom: boolean;
-      messages: Message[];
-      nickname: string;
-      isNicknameSet: boolean;
-      members: {name: string, hp: number}[]; 
+    id: string;
+    isInRoom: boolean;
+    messages: any[];
+    nickname: string;
+    isNicknameSet: boolean;
+    members: any[];
+    turnIndex: number;
   }>({
-      id: '',
-      isInRoom: false,
+      id: localStorage.getItem('nexus_last_room_id') || '',
+      isInRoom: localStorage.getItem('nexus_is_in_room') === 'true',
       messages: [],
-      nickname: '',
-      isNicknameSet: false,
-      members: []
+      nickname: localStorage.getItem(`nexus_nickname_${userEmail}`) || '',
+      isNicknameSet: !!localStorage.getItem(`nexus_nickname_${userEmail}`),
+      members: [],
+      turnIndex: 0
   });
   
-  const [isSoloMode, setIsSoloMode] = useState(false);
-  
-  // SCANNER STATE
+  const [isSoloMode, setIsSoloMode] = useState(() => localStorage.getItem('nexus_solo_mode') === 'true');
   const [scanMode, setScanMode] = useState<'item' | 'friend'>('item');
-  const [friendRequestStatus, setFriendRequestStatus] = useState<string | null>(null);
-  const [isAdminPreview, setIsAdminPreview] = useState(false);
 
-  // REFS
-  const roomPollInterval = useRef<number | null>(null);
-  const statusUpdateInterval = useRef<number | null>(null);
-  const heartbeatInterval = useRef<number | null>(null);
-  const lastMessageIdRef = useRef<string | null>(null);
+  const isGameActive = isSoloMode || isGuest || (roomState.isInRoom && roomState.members.length >= 2);
 
-  // --- UTILS ---
-  const getAdjustedItem = useCallback((item: GameEvent, isNightMode: boolean, pClass: PlayerClass | null): GameEvent => {
-      let newItem = { ...item };
-      
-      // Fix for Type mismatches (e.g. "Encounter" vs "SETKÁNÍ")
-      if (item.type) {
-         const typeStr = item.type.toUpperCase();
-         if (typeStr === 'ENCOUNTER') newItem.type = GameEventType.ENCOUNTER;
-         else if (typeStr === 'BOSS') newItem.type = GameEventType.BOSS;
-         else if (typeStr === 'TRAP' || typeStr === 'PAST') newItem.type = GameEventType.TRAP;
-         else if (typeStr === 'ITEM' || typeStr === 'PŘEDMĚT') newItem.type = GameEventType.ITEM;
+  useEffect(() => {
+    if (!roomState.isInRoom || !roomState.id || isGuest || !isServerReady) return;
+    const pollInterval = setInterval(async () => {
+        try {
+            const status = await apiService.getRoomStatus(roomState.id);
+            const messages = await apiService.getRoomMessages(roomState.id);
+            setRoomState(prev => ({ ...prev, members: status.members, turnIndex: status.turnIndex, messages }));
+            await apiService.updatePlayerStatus(roomState.id, roomState.nickname, playerHp);
+        } catch (e) {}
+    }, 3000);
+    return () => clearInterval(pollInterval);
+  }, [roomState.isInRoom, roomState.id, roomState.nickname, playerHp, isGuest, isServerReady]);
+
+  useEffect(() => {
+    if (isServerReady && !isGuest) {
+        syncMasterCatalog();
+    }
+  }, [isServerReady, isGuest]);
+
+  const syncMasterCatalog = async () => {
+      try {
+          const catalog = await apiService.getMasterCatalog();
+          if (catalog && catalog.length > 0) {
+              setMasterCatalog(catalog);
+              localStorage.setItem('nexus_master_catalog', JSON.stringify(catalog));
+          }
+      } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (!userEmail) return;
+    localStorage.setItem('nexus_player_hp', playerHp.toString());
+    localStorage.setItem('nexus_player_mana', playerMana.toString());
+    localStorage.setItem('nexus_player_gold', playerGold.toString());
+    localStorage.setItem('nexus_player_armor', playerArmor.toString());
+    localStorage.setItem('nexus_player_luck', playerLuck.toString());
+    localStorage.setItem('nexus_player_oxygen', playerOxygen.toString());
+    if (playerClass) localStorage.setItem(`nexus_class_${userEmail || 'guest'}`, playerClass);
+    localStorage.setItem(`nexus_inv_${userEmail || 'guest'}`, JSON.stringify(inventory));
+    localStorage.setItem('nexus_solo_mode', isSoloMode.toString());
+    localStorage.setItem('nexus_is_in_room', roomState.isInRoom.toString());
+    localStorage.setItem('nexus_last_room_id', roomState.id);
+    localStorage.setItem('nexus_master_catalog', JSON.stringify(masterCatalog));
+  }, [playerHp, playerMana, playerGold, playerArmor, playerLuck, playerOxygen, playerClass, inventory, userEmail, isSoloMode, roomState.isInRoom, roomState.id, masterCatalog]);
+
+  const showNotification = useCallback((message: string, type: ToastType = 'info') => {
+      setNotification({ id: Date.now().toString(), message, type });
+      if (type === 'gift') playSound('success');
+      else if (type === 'message') playSound('message');
+      else if (type === 'error') playSound('error');
+      else playSound('click');
+  }, []);
+
+  const handleRefreshDatabase = async () => {
+    if (!userEmail || isGuest || !isServerReady) {
+        showNotification("Místní databáze aktualizována.", "info");
+        await syncMasterCatalog();
+        return;
+    }
+    setIsRefreshing(true);
+    setLoadingInventory(true);
+    try {
+        const data = await apiService.getInventory(userEmail);
+        setInventory(data);
+        await syncMasterCatalog();
+        showNotification("Vše synchronizováno", "success");
+    } catch (e) {
+        showNotification("Chyba synchronizace", "error");
+    } finally {
+        setIsRefreshing(false);
+        setLoadingInventory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === Tab.INVENTORY && !hasInitialRefreshDone && userEmail && !isGuest && isServerReady) {
+      handleRefreshDatabase();
+      setHasInitialRefreshDone(true);
+    }
+  }, [activeTab, hasInitialRefreshDone, userEmail, isGuest, isServerReady]);
+
+  const handleGameSetup = async (nickname: string, pClass: PlayerClass, action: string | 'create' | 'solo', password?: string) => {
+    setPlayerClass(pClass);
+    setRoomState(prev => ({ ...prev, nickname, isNicknameSet: true }));
+    if (userEmail) localStorage.setItem(`nexus_nickname_${userEmail}`, nickname);
+    if (action === 'solo') {
+        setIsSoloMode(true);
+        setRoomState(prev => ({ ...prev, isInRoom: false, id: '' }));
+        showNotification("Solo režim aktivován", "success");
+        return;
+    }
+    setIsSoloMode(false);
+    try {
+        if (action === 'create') {
+            const newRoomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+            if (isServerReady && !isGuest) await apiService.createRoom(newRoomId, nickname, password);
+            setRoomState(prev => ({ ...prev, id: newRoomId, isInRoom: true }));
+            showNotification(`Místnost ${newRoomId} vytvořena`, "success");
+        } else {
+            if (isServerReady && !isGuest) await apiService.joinRoom(action, nickname, playerHp, password);
+            setRoomState(prev => ({ ...prev, id: action, isInRoom: true }));
+            showNotification(`Připojeno k ${action}`, "success");
+        }
+    } catch (err: any) {
+        showNotification(err.message || "Chyba připojení", "error");
+        throw err;
+    }
+  };
+
+  const handleLeaveRoom = useCallback(async () => {
+    if (!roomState.id) return;
+    try {
+        if (isServerReady && !isGuest) {
+            await apiService.leaveRoom(roomState.id, roomState.nickname);
+        }
+        setRoomState(prev => ({ ...prev, isInRoom: false, id: '', members: [] }));
+        localStorage.removeItem('nexus_is_in_room');
+        localStorage.removeItem('nexus_last_room_id');
+        showNotification("Místnost opuštěna", "info");
+        playSound('click');
+    } catch (e) {
+        showNotification("Chyba při opouštění místnosti", "error");
+    }
+  }, [roomState.id, roomState.nickname, isServerReady, isGuest, showNotification]);
+
+  const handleEndTurn = async () => {
+      setShowEndTurnPrompt(false);
+      setTurnCountdown(TURN_TIMEOUT_SECONDS);
+      if (isSoloMode) { playSound('success'); return; }
+      if (!roomState.id) return;
+      try {
+          await apiService.nextTurn(roomState.id);
+          playSound('success');
+      } catch (e) {}
+  };
+
+  const handleSendMessage = async (text: string) => {
+    if (!roomState.isInRoom || !roomState.id || !roomState.nickname) return;
+    try {
+      await apiService.sendMessage(roomState.id, roomState.nickname, text);
+    } catch (e) {
+      showNotification("Zprávu nelze odeslat", "error");
+    }
+  };
+
+  const handleUseEvent = async (event: GameEvent) => {
+      if (!isGameActive && !isAdmin) {
+          showNotification("NELZE POUŽÍT: Jednotka nekompletní (vyžadováni 2+ hráči)", "error");
+          vibrate([100]);
+          return;
       }
 
+      setActionTakenDuringEvent(true);
+      if (event.stats) { 
+          event.stats.forEach(stat => { 
+              const val = parseInt(String(stat.value)); 
+              if (isNaN(val)) return; 
+              const label = stat.label.toUpperCase(); 
+              if (['HP', 'ZDRAVÍ', 'HEALTH', 'ŽIVOTY', 'HEAL', 'LÉČENÍ'].some(k => label.includes(k))) handleHpChange(val); 
+              else if (['DMG', 'POŠKOZENÍ', 'ÚTOK', 'UTOK', 'ATTACK'].some(k => label.includes(k))) handleHpChange(-Math.abs(val)); 
+              else if (['GOLD', 'KREDITY', 'PENÍZE', 'MINCE'].some(k => label.includes(k))) handleGoldChange(val); 
+              else if (['MANA', 'ENERGIE', 'ENERGY', 'POWER'].some(k => label.includes(k))) handleManaChange(val);
+          }); 
+      }
+      if (!inventory.some(i => i.id === event.id)) { setCurrentEvent(null); return; }
+      if (event.isConsumable) {
+          await handleDeleteEvent(event.id);
+          showNotification(`${event.title} použito!`, 'success');
+          setScreenFlash('green');
+      } else { 
+          setScreenFlash('green'); 
+          playSound('success'); 
+          vibrate([50, 50]); 
+          setTimeout(() => setScreenFlash(null), 500); 
+          showNotification(`${event.title} aktivováno.`, 'info');
+      }
+  };
+
+  const handleHpChange = (amount: number) => {
+      setPlayerHp(prev => Math.max(0, Math.min(MAX_PLAYER_HP, prev + amount)));
+      if (amount < 0) { setScreenFlash('red'); playSound('damage'); vibrate([200]); setTimeout(() => setScreenFlash(null), 500); } 
+      else if (amount > 0) { setScreenFlash('green'); playSound('heal'); setTimeout(() => setScreenFlash(null), 500); }
+  };
+
+  const handleManaChange = (amount: number) => {
+      setPlayerMana(prev => Math.max(0, Math.min(MAX_PLAYER_MANA, prev + amount)));
+      if (amount > 0) { setScreenFlash('blue'); playSound('heal'); setTimeout(() => setScreenFlash(null), 500); }
+  };
+
+  const handleGoldChange = (amount: number) => { setPlayerGold(prev => Math.max(0, prev + amount)); if (amount > 0) playSound('success'); else playSound('click'); };
+
+  const handleScanCode = async (code: string) => {
+    if (!isGameActive && !isAdmin && !code.startsWith('friend:')) {
+        showNotification("SKENER BLOKOVÁN: Jednotka nekompletní (vyžadováni 2+ hráči)", "error");
+        vibrate([100, 50, 100]);
+        return;
+    }
+
+    if (scanMode === 'friend' || code.startsWith('friend:')) {
+        const friendEmail = code.replace('friend:', '');
+        if (isServerReady && userEmail && !isGuest) {
+            await apiService.sendFriendRequest(userEmail, friendEmail);
+            showNotification("Žádost o přátelství odeslána", "success");
+        } else showNotification("Offline: Nelze přidat přátele", "info");
+        setScanMode('item');
+        return;
+    }
+
+    setIsAIThinking(true);
+    vibrate(50);
+
+    const localItem = inventory.find(i => i.id.toLowerCase() === code.toLowerCase());
+    if (localItem) { 
+        setCurrentEvent(getAdjustedItem(localItem, isNight, playerClass)); 
+        setIsAIThinking(false);
+        return; 
+    }
+    const vaultItem = masterCatalog.find(i => i.id.toLowerCase() === code.toLowerCase());
+    if (vaultItem) { 
+        setCurrentEvent(getAdjustedItem(vaultItem, isNight, playerClass)); 
+        setEventSource('scanner');
+        setIsAIThinking(false);
+        return; 
+    }
+
+    try {
+        if (isServerReady) {
+            let foundItem = await apiService.getCardById(userEmail!, code);
+            if (!foundItem) foundItem = await apiService.getCardById(ADMIN_EMAIL, code);
+            
+            if (foundItem) {
+                setCurrentEvent(getAdjustedItem(foundItem, isNight, playerClass));
+                setEventSource('scanner');
+                setIsAIThinking(false);
+                return;
+            }
+        }
+    } catch (e) {}
+
+    showNotification("Analyzuji neznámý kód přes AI...", "info");
+    try {
+        const aiEvent = await geminiService.interpretCode(code);
+        setCurrentEvent(aiEvent);
+        setEventSource('scanner');
+        showNotification("Anomálie identifikována!", "success");
+    } catch (err) {
+        showNotification("Chyba analýzy signálu", "error");
+    } finally {
+        setIsAIThinking(false);
+    }
+  };
+
+  const closeEvent = () => {
+    const wasScanner = eventSource === 'scanner';
+    const wasAction = actionTakenDuringEvent;
+    setCurrentEvent(null);
+    setEventSource(null);
+    setActionTakenDuringEvent(false);
+    if (!isAdmin && (wasScanner || wasAction)) {
+      setShowEndTurnPrompt(true);
+      setTurnCountdown(TURN_TIMEOUT_SECONDS);
+      playSound('open');
+    }
+  };
+
+  const handleOpenInventoryItem = (item: GameEvent) => {
+      if (isAdmin) {
+          if (item.isLocked) {
+               showNotification("PŘÍSTUP ZAMÍTNUT: Asset je ZAMČEN. Úpravy blokovány.", "error");
+               playSound('error');
+               vibrate([50, 100]);
+               return;
+          }
+
+          setEditingEvent(item);
+          setActiveTab(Tab.GENERATOR);
+          setCurrentEvent(null);
+          showNotification(`Karta ${item.id} načtena k úpravě.`, 'info');
+      } else {
+          setEventSource('inventory');
+          setActionTakenDuringEvent(false);
+          setCurrentEvent(item);
+      }
+  };
+
+  const handleSaveEvent = async (event: GameEvent) => {
+    setInventory(prev => {
+        const exists = prev.some(i => i.id === event.id);
+        return exists ? prev.map(i => i.id === event.id ? event : i) : [...prev, event];
+    });
+    if (!isGuest && !isSoloMode && isServerReady) {
+        try { await apiService.saveCard(userEmail!, event); } catch (e) {}
+    }
+    playSound('success');
+  };
+
+  const handleDeleteEvent = useCallback(async (id: string) => {
+    const lowerId = id.toLowerCase();
+    
+    const itemInInv = inventory.find(i => i.id.toLowerCase() === lowerId);
+    const itemInCatalog = masterCatalog.find(i => i.id.toLowerCase() === lowerId);
+    
+    if (itemInInv?.isLocked || itemInCatalog?.isLocked) {
+        showNotification("Asset je ZAMČEN. Nelze odstranit!", "error");
+        return;
+    }
+
+    if (currentEvent && currentEvent.id.toLowerCase() === lowerId) {
+        setCurrentEvent(null);
+    }
+    
+    if (editingEvent && editingEvent.id.toLowerCase() === lowerId) {
+        setEditingEvent(null);
+    }
+
+    setInventory(prev => prev.filter(i => i.id.toLowerCase() !== lowerId));
+    setMasterCatalog(prev => prev.filter(i => i.id.toLowerCase() !== lowerId));
+    
+    if (!isGuest && userEmail && isServerReady) {
+        try { 
+            await apiService.deleteCard(userEmail, id);
+            showNotification("Data TRVALE vymazána ze sektoru.", "success");
+            playSound('success');
+        } catch (e) {
+            showNotification("Chyba při mazání z DB. Zkuste obnovit.", "error");
+        }
+    } else {
+        showNotification("Vymazáno z místní paměti.", "info");
+    }
+  }, [inventory, masterCatalog, userEmail, isGuest, isServerReady, currentEvent, editingEvent, showNotification]);
+
+  const handleToggleLock = (id: string) => {
+      if (!isAdmin) return;
+      setInventory(prev => prev.map(item => {
+          if (item.id === id) {
+              const newLocked = !item.isLocked;
+              showNotification(newLocked ? "Asset ZAMČEN" : "Asset ODEMČEN", newLocked ? "info" : "success");
+              const updatedItem = { ...item, isLocked: newLocked };
+              if (!isGuest && isServerReady) apiService.saveCard(userEmail!, updatedItem).catch(() => {});
+              return updatedItem;
+          }
+          return item;
+      }));
+  };
+
+  const handleToggleSound = () => {
+    const newState = !soundEnabled;
+    toggleSoundSystem(newState);
+    setSoundEnabled(newState);
+  };
+
+  const handleToggleVibration = () => {
+    const newState = !vibrationEnabled;
+    toggleVibrationSystem(newState);
+    setVibrationEnabled(newState);
+  };
+
+  const handleLogout = () => { 
+    localStorage.removeItem('nexus_current_user');
+    localStorage.removeItem('nexus_is_in_room');
+    localStorage.removeItem('nexus_last_room_id');
+    localStorage.removeItem('nexus_solo_mode');
+    sessionStorage.clear();
+    
+    setUserEmail(null);
+    setRoomState({
+        id: '',
+        isInRoom: false,
+        messages: [],
+        nickname: '',
+        isNicknameSet: false,
+        members: [],
+        turnIndex: 0
+    });
+    setIsSoloMode(false);
+    setActiveTab(Tab.SCANNER);
+    
+    window.location.assign(window.location.origin + window.location.pathname);
+  };
+
+  const getAdjustedItem = useCallback((item: GameEvent, isNightMode: boolean, _pClass: PlayerClass | null): GameEvent => {
+      let newItem = { ...item };
       if (isNightMode && item.timeVariant && item.timeVariant.enabled) {
           newItem = {
               ...newItem,
               title: item.timeVariant.nightTitle || item.title,
               description: item.timeVariant.nightDescription || item.description,
               type: item.timeVariant.nightType || item.type,
-              stats: item.timeVariant.nightStats && item.timeVariant.nightStats.length > 0 
-                     ? item.timeVariant.nightStats 
-                     : item.stats
+              stats: item.timeVariant.nightStats && item.timeVariant.nightStats.length > 0 ? item.timeVariant.nightStats : item.stats
           };
-      }
-      if (pClass && item.classVariants && item.classVariants[pClass]) {
-          const variant = item.classVariants[pClass];
-          if (variant) {
-              if (variant.overrideTitle) newItem.title = variant.overrideTitle;
-              if (variant.overrideDescription) newItem.description = variant.overrideDescription;
-              if (variant.overrideType) newItem.type = variant.overrideType;
-              if (variant.bonusStats && variant.bonusStats.length > 0) {
-                  newItem.stats = variant.bonusStats;
-              }
-          }
       }
       return newItem;
   }, []);
 
-  const showNotification = (message: string, type: ToastType = 'info') => {
-      setNotification({ id: Date.now().toString(), message, type });
-      if (type === 'gift') playSound('success');
-      else if (type === 'message') playSound('message');
-      else playSound('click');
-  };
-
-  // --- PERSISTENCE EFFECTS ---
-  useEffect(() => { localStorage.setItem('nexus_player_hp', playerHp.toString()); }, [playerHp]);
-  useEffect(() => { localStorage.setItem('nexus_player_gold', playerGold.toString()); }, [playerGold]);
-  useEffect(() => { if (playerClass) localStorage.setItem(`nexus_class_${userEmail || 'guest'}`, playerClass); }, [playerClass, userEmail]);
-  
-  useEffect(() => {
-      const timer = setInterval(() => { setIsNight(isNightTime()); }, 60000);
-      return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-      if (isAdmin && (activeTab === Tab.SCANNER || activeTab === Tab.ROOM)) {
-          setActiveTab(Tab.GENERATOR);
-      }
-  }, [isAdmin, activeTab]);
-
-  useEffect(() => {
-      if (isGuest) { setIsServerReady(true); }
-  }, [isGuest]);
-
-  // --- PWA INSTALL PROMPT LISTENER ---
-  useEffect(() => {
-      const handler = (e: any) => {
-          // Prevent Chrome 67 and earlier from automatically showing the prompt
-          e.preventDefault();
-          // Stash the event so it can be triggered later.
-          setDeferredPrompt(e);
-      };
-      window.addEventListener('beforeinstallprompt', handler);
-      return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const installApp = async () => {
-      if (!deferredPrompt) return;
-      // Show the install prompt
-      deferredPrompt.prompt();
-      // Wait for the user to respond to the prompt
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-      } else {
-          console.log('User dismissed the install prompt');
-      }
-      // We've used the prompt, and can't use it again, discard it
-      setDeferredPrompt(null);
-  };
-
-  useEffect(() => {
-    if (userEmail && !isGuest && !isAdmin) {
-         const localNick = localStorage.getItem(`nexus_nickname_${userEmail}`);
-         if (localNick) setRoomState(prev => ({ ...prev, nickname: localNick, isNicknameSet: true }));
-         apiService.getNickname(userEmail).then(cloudNick => {
-             if(cloudNick && cloudNick !== localNick) {
-                 setRoomState(prev => ({ ...prev, nickname: cloudNick, isNicknameSet: true }));
-                 localStorage.setItem(`nexus_nickname_${userEmail}`, cloudNick);
-             }
-         });
-    } else if (isGuest) {
-         const localNick = localStorage.getItem(`nexus_nickname_guest`);
-         if (localNick) setRoomState(prev => ({ ...prev, nickname: localNick, isNicknameSet: true }));
-    }
-  }, [userEmail, isGuest, isAdmin]);
-
-  // --- INVENTORY LOGIC ---
-  const saveToLocalBackup = (email: string, data: GameEvent[]) => {
-    try { localStorage.setItem(`nexus_inventory_backup_${email}`, JSON.stringify(data)); } catch (e) {}
-  };
-  const loadFromLocalBackup = (email: string): GameEvent[] => {
-    try { return JSON.parse(localStorage.getItem(`nexus_inventory_backup_${email}`) || '[]'); } catch (e) { return []; }
-  };
-
-  const loadInventory = useCallback(async () => {
-    if (userEmail) {
-      setLoadingInventory(true);
-      let localData = loadFromLocalBackup(userEmail);
-      if (isGuest) { setInventory(localData); setSyncStatus('guest'); setLoadingInventory(false); return; }
-
-      try {
-        let cloudData: GameEvent[] = [], adminData: GameEvent[] = [];
-        if (isAdmin) cloudData = await apiService.getInventory(userEmail);
-        else [cloudData, adminData] = await Promise.all([apiService.getInventory(userEmail), apiService.getInventory(ADMIN_EMAIL)]);
-
-        if (!isAdmin && adminData.length > 0) {
-            const masterMap = new Map(adminData.map(item => [item.id, item]));
-            localData = localData.map(item => { const masterVersion = masterMap.get(item.id); return masterVersion ? { ...masterVersion } : item; });
-            localData = localData.filter(item => masterMap.has(item.id));
-        }
-        
-        let finalInventory: GameEvent[] = [];
-        if (!initialSyncComplete && cloudData.length === 0 && localData.length > 0) {
-             setSyncStatus('restoring');
-             await apiService.restoreInventory(userEmail, localData);
-             finalInventory = localData;
-             setInitialSyncComplete(true);
-        } else {
-             if (!isAdmin && adminData.length > 0) {
-                const masterMap = new Map(adminData.map(item => [item.id, item]));
-                cloudData = cloudData.map(item => { const master = masterMap.get(item.id); if (!master) return null; return {...master}; }).filter((item): item is GameEvent => item !== null);
-             }
-             finalInventory = cloudData;
-             setInitialSyncComplete(true);
-        }
-        setInventory(finalInventory);
-        saveToLocalBackup(userEmail, finalInventory);
-        setSyncStatus('synced');
-      } catch (e) { setInventory(localData); setSyncStatus('offline'); } finally { setLoadingInventory(false); }
-    } else { setInventory([]); }
-  }, [userEmail, isAdmin, isGuest, initialSyncComplete]);
-
-  useEffect(() => {
-    if (activeTab === Tab.INVENTORY && !isGuest && userEmail) loadInventory();
-  }, [activeTab, isGuest, userEmail, loadInventory]);
-
-  // --- HEARTBEAT ---
-  useEffect(() => {
-      if (isGuest || !userEmail) {
-          if (heartbeatInterval.current) clearInterval(heartbeatInterval.current);
-          return;
-      }
-      if (!isServerReady) return;
-
-      const performHeartbeat = async () => {
-          const isAlive = await apiService.checkHealth();
-          if (!isAlive) setSyncStatus('offline');
-          else setSyncStatus(prev => (prev === 'offline' || prev === 'error') ? 'synced' : prev);
-      };
-      
-      performHeartbeat(); 
-      heartbeatInterval.current = window.setInterval(performHeartbeat, 15000);
-      return () => { if (heartbeatInterval.current) clearInterval(heartbeatInterval.current); };
-  }, [userEmail, isGuest, isServerReady]);
-
-  // --- POLLING LOGIC ---
-  const clearIntervals = () => {
-      if (roomPollInterval.current) { clearInterval(roomPollInterval.current); roomPollInterval.current = null; }
-      if (statusUpdateInterval.current) { clearInterval(statusUpdateInterval.current); statusUpdateInterval.current = null; }
-  };
-
-  const fetchRoomData = useCallback(async (roomId: string) => {
-      if (syncStatus === 'offline') return;
-      try {
-          const [msgs, members, raidStatus] = await Promise.all([
-              apiService.getRoomMessages(roomId),
-              apiService.getRoomMembers(roomId),
-              apiService.getRaidState(roomId) 
-          ]);
-
-          if (raidStatus && raidStatus.isActive) {
-               setActiveRaid(raidStatus);
-               if (!prevRaidActiveRef.current) {
-                   setShowRaidIntro(true);
-                   setCurrentEvent(null); 
-                   setTimeout(() => {
-                       setShowRaidIntro(false);
-                       setIsRaidScreenVisible(true);
-                   }, 4000);
-               } else {
-                   if (!showRaidIntro && !isRaidScreenVisible && !isAdmin) {
-                       setIsRaidScreenVisible(true);
-                   }
-               }
-               prevRaidActiveRef.current = true;
-          } else {
-               setActiveRaid(null);
-               setIsRaidScreenVisible(false);
-               prevRaidActiveRef.current = false;
-          }
-
-          setRoomState(prev => {
-               let newMessages = prev.messages;
-               if (msgs && msgs.length > 0) {
-                    const lastPrev = prev.messages[prev.messages.length - 1];
-                    const lastNew = msgs[msgs.length - 1];
-                    if (!lastPrev || (lastNew && lastNew.id !== lastPrev.id) || prev.messages.length !== msgs.length) {
-                        newMessages = msgs;
-                    }
-               }
-               const newMembers = members || prev.members;
-               return { ...prev, messages: newMessages, members: newMembers };
-          });
-      } catch (e) { }
-  }, [syncStatus, isRaidScreenVisible, isAdmin, showRaidIntro]);
-
-  useEffect(() => {
-      if (isAdmin) { clearIntervals(); return; }
-      if (roomState.isInRoom && roomState.id) {
-          fetchRoomData(roomState.id);
-          
-          if (!roomPollInterval.current) {
-               roomPollInterval.current = window.setInterval(() => fetchRoomData(roomState.id), 2000);
-          }
-          if (!statusUpdateInterval.current) {
-              statusUpdateInterval.current = window.setInterval(() => {
-                 if (roomState.nickname) apiService.updatePlayerStatus(roomState.id, roomState.nickname, playerHp);
-              }, 5000); 
-          }
-      } else { clearIntervals(); }
-      return () => clearIntervals();
-  }, [roomState.isInRoom, roomState.id, roomState.nickname, playerHp, isAdmin, fetchRoomData]);
-
-  // --- NOTIFICATIONS & MESSAGES ---
-  useEffect(() => {
-      if (roomState.messages.length === 0) return;
-      const lastMsg = roomState.messages[roomState.messages.length - 1];
-      if (lastMsg.id === lastMessageIdRef.current) return;
-      lastMessageIdRef.current = lastMsg.id;
-
-      const isMyMessage = lastMsg.sender === roomState.nickname;
-      const isSystem = lastMsg.isSystem;
-      const isRecent = (Date.now() - lastMsg.timestamp) < 5000;
-
-      if (!isMyMessage && !isSystem && isRecent) {
-          if (lastMsg.text.includes('|||')) return;
-          showNotification(`${lastMsg.sender}: ${lastMsg.text}`, 'message');
-          if (activeTab !== Tab.ROOM) {
-              setUnreadMessagesCount(prev => prev + 1);
-          }
-      }
-  }, [roomState.messages, roomState.nickname, activeTab]);
-
-  // --- ACTIONS ---
-  const handleRemoveLocalItem = (id: string) => {
-      setInventory(prev => {
-          const updated = prev.filter(i => i.id !== id);
-          if (userEmail) saveToLocalBackup(userEmail, updated);
-          return updated;
-      });
-  };
-
-  const performDelete = async (idToDelete: string): Promise<boolean> => {
-      if (!userEmail) return false;
-      handleRemoveLocalItem(idToDelete);
-      if (isGuest) return true;
-      try {
-          await apiService.deleteCard(userEmail, idToDelete);
-          setSyncStatus('synced');
-          return true;
-      } catch (apiErr) {
-          setSyncStatus('offline');
-          return true;
-      }
-  };
-
-  const handleConsumeItem = async (id: string) => {
-      try { await performDelete(id); } catch (error) {}
-  };
-
-  const handleLogin = (email: string) => { 
-      localStorage.setItem('nexus_current_user', email); 
-      setUserEmail(email); 
-      playSound('success'); 
-      if (email !== 'guest') setIsServerReady(false);
-  };
-
-  const handleLeaveRoom = async () => {
-      if (roomState.id && roomState.nickname && syncStatus !== 'offline') await apiService.leaveRoom(roomState.id, roomState.nickname);
-      clearIntervals();
-      setRoomState(prev => ({ ...prev, id: '', isInRoom: false, messages: [], members: [] }));
-      setIsSoloMode(false); 
-      setGiftTarget(null);
-      playSound('click');
-  };
-
-  const handleLogout = () => {
-    handleLeaveRoom();
-    localStorage.removeItem('nexus_current_user');
-    setUserEmail(null);
-    setInventory([]);
-    setInitialSyncComplete(false); 
-    setAdminNightOverride(null); 
-    setPlayerClass(null);
-    setActiveTab(isAdmin ? Tab.GENERATOR : Tab.SCANNER);
-    playSound('click');
-    if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-  };
-
-  const handleHpChange = (amount: number) => {
-      setPlayerHp(prev => { const newVal = Math.max(0, Math.min(MAX_PLAYER_HP, prev + amount)); return newVal; });
-      if (amount < 0) { setScreenFlash('red'); playSound('damage'); vibrate([200]); setTimeout(() => setScreenFlash(null), 500); } 
-      else if (amount > 0) { setScreenFlash('green'); playSound('heal'); setTimeout(() => setScreenFlash(null), 500); }
-  };
-
-  const handleGoldChange = (amount: number) => { setPlayerGold(prev => Math.max(0, prev + amount)); if (amount > 0) playSound('success'); else playSound('click'); };
-
-  const handleSaveEvent = async (event: GameEvent) => {
-    if (!userEmail) throw new Error("Not logged in");
-    const isImporting = isAdminPreview || activeMerchant;
-    try {
-      setInventory(prev => {
-          const exists = prev.some(i => i.id === event.id);
-          const updated = exists ? prev.map(i => i.id === event.id ? event : i) : [...prev, event];
-          if (userEmail) saveToLocalBackup(userEmail, updated);
-          return updated;
-      });
-      if (isImporting) { setIsAdminPreview(false); if (!activeMerchant) setCurrentEvent(event); }
-      if (isGuest) return;
-      try {
-        if (isImporting) await apiService.saveCard(userEmail, event);
-        else { const existingItem = await apiService.getCardById(userEmail, event.id); if (existingItem) await apiService.updateCard(userEmail, event.id, event); else await apiService.saveCard(userEmail, event); }
-        setSyncStatus('synced'); playSound('success');
-      } catch (apiError) { setSyncStatus('offline'); }
-    } catch (error) { setSyncStatus('error'); throw error; }
-  };
-
-  const handleDeleteEvent = async (id: string) => {
-    setCurrentEvent(null);
-    try { await performDelete(id); } catch (error) {}
-  };
-
-  const handleUseEvent = async (event: GameEvent) => {
-      if (event.stats) { event.stats.forEach(stat => { const val = parseInt(String(stat.value)); if (isNaN(val)) return; const label = stat.label.toUpperCase(); if (['HP', 'ZDRAVÍ', 'HEALTH', 'ŽIVOTY', 'HEAL', 'LÉČENÍ'].some(k => label.includes(k))) handleHpChange(val); else if (['DMG', 'POŠKOZENÍ', 'POSKOZENI', 'ÚTOK', 'UTOK', 'ATTACK'].some(k => label.includes(k))) handleHpChange(-Math.abs(val)); else if (['GOLD', 'KREDITY', 'PENÍZE', 'MINCE'].some(k => label.includes(k))) handleGoldChange(val); }); }
-      if (isAdminPreview || !inventory.some(i => i.id === event.id)) { setCurrentEvent(null); setIsAdminPreview(false); setInstantEffectValue(null); if (!event.stats?.some(s => ['HP', 'ZDRAVÍ', 'HEALTH'].some(k => s.label.toUpperCase().includes(k)))) { setScreenFlash('green'); playSound('success'); setTimeout(() => setScreenFlash(null), 500); } return; }
-      if (event.isConsumable) await handleDeleteEvent(event.id); else { setScreenFlash('green'); playSound('success'); vibrate([50, 50]); setTimeout(() => setScreenFlash(null), 500); alert(`Efekt předmětu "${event.title}" aktivován! Předmět zůstává v inventáři.`); }
-  };
-
-  const handleResolveDilemma = (option: DilemmaOption) => {
-      if (option.effectType === 'hp') handleHpChange(option.effectValue);
-      else if (option.effectType === 'gold') handleGoldChange(option.effectValue);
-      playSound('click');
-  };
-
-  const handleScanCode = async (code: string) => {
-    if (scanMode === 'friend') {
-        if (!userEmail || isGuest) { alert("Pro přidání přátel se musíte přihlásit."); setScanMode('item'); return; }
-        if (code.startsWith('friend:')) {
-            const friendEmail = code.replace('friend:', '');
-            if (friendEmail.toLowerCase() === userEmail.toLowerCase()) { setFriendRequestStatus("Nemůžete si přidat sami sebe!"); playSound('error'); setTimeout(() => setFriendRequestStatus(null), 2000); return; }
-            try { await apiService.sendFriendRequest(userEmail, friendEmail); setFriendRequestStatus(`Žádost odeslána uživateli ${friendEmail}`); playSound('success'); setTimeout(() => { setFriendRequestStatus(null); setScanMode('item'); setActiveTab(Tab.ROOM); }, 2000);
-            } catch (e: any) { setFriendRequestStatus(e.message || "Chyba při odesílání žádosti"); playSound('error'); setTimeout(() => setFriendRequestStatus(null), 2000); }
-        } else { setFriendRequestStatus("Neplatný QR kód přítele."); playSound('error'); setTimeout(() => setFriendRequestStatus(null), 2000); }
-        return;
-    }
-    if (!userEmail) { alert("Pro skenování kódů se prosím přihlašte."); return; }
-    if (scanError === code) return;
-    try {
-      // 1. Check Local Inventory first (Case Insensitive for safety)
-      const localItem = inventory.find(i => i.id.toLowerCase() === code.toLowerCase());
-      if (localItem) { 
-          setScanError(null); 
-          const itemToDisplay = getAdjustedItem(localItem, isNight, playerClass);
-          setCurrentEvent(itemToDisplay); 
-          setIsAdminPreview(false); 
-          setInstantEffectValue(null); 
-          return; 
-      }
-      if (isGuest) { setScanError(code); playSound('error'); return; }
-      
-      // 2. Check User Inventory from Server
-      let foundItem = await apiService.getCardById(userEmail, code);
-      if (foundItem) { 
-          setScanError(null); 
-          const updatedInventory = [...inventory, foundItem]; 
-          setInventory(updatedInventory); 
-          saveToLocalBackup(userEmail, updatedInventory); 
-          const itemToDisplay = getAdjustedItem(foundItem, isNight, playerClass);
-          setCurrentEvent(itemToDisplay); 
-          setIsAdminPreview(false); 
-          setInstantEffectValue(null); 
-          return; 
-      }
-      
-      // 3. Check Admin Inventory (Master DB)
-      if (userEmail !== ADMIN_EMAIL) {
-        try {
-           let adminItem = await apiService.getCardById(ADMIN_EMAIL, code);
-           if (adminItem) {
-             setScanError(null);
-             adminItem = getAdjustedItem(adminItem, isNight, playerClass);
-             
-             // --- FIX: Robust type checking (Encounter, SETKÁNÍ, etc.) ---
-             // Some items might be saved as "Encounter" or "SETKÁNÍ". We check all variants.
-             const typeStr = adminItem.type.toUpperCase();
-             const isBoss = typeStr === 'BOSS';
-             const isEncounter = typeStr === 'ENCOUNTER' || typeStr === 'SETKÁNÍ' || typeStr === 'SKIRMISH';
-             const isMerchant = typeStr === 'MERCHANT' || typeStr === 'OBCHODNÍK';
-             const isTrap = typeStr === 'TRAP' || typeStr === 'PAST' || typeStr === 'NÁSTRAHA';
-
-             if (isBoss) { setCurrentEvent(adminItem); setIsAdminPreview(true); return; }
-             if (isEncounter) { setCurrentEvent(adminItem); setIsAdminPreview(true); return; }
-             
-             if (isMerchant) { setActiveMerchant(adminItem); playSound('open'); return; }
-             
-             if (isTrap) {
-                 let effectVal = 0;
-                 if (adminItem.stats) {
-                     const dmgStat = adminItem.stats.find(s => ['DMG', 'POŠKOZENÍ', 'ÚTOK'].includes(s.label.toUpperCase()));
-                     const hpStat = adminItem.stats.find(s => ['HP', 'ZDRAVÍ', 'HEALTH'].includes(s.label.toUpperCase()));
-                     if (dmgStat) effectVal = -Math.abs(parseInt(String(dmgStat.value)));
-                     else if (hpStat) effectVal = parseInt(String(hpStat.value));
-                 }
-                 if (effectVal !== 0) { setInstantEffectValue(effectVal); handleHpChange(effectVal); } else { setInstantEffectValue(null); }
-             } else { setInstantEffectValue(null); }
-             setCurrentEvent(adminItem); setIsAdminPreview(true); return;
-           }
-        } catch (err) { }
-      }
-      setScanError(code); playSound('error');
-    } catch (error) { setScanError(code); playSound('error'); }
-  };
-
-  const handleStartRaid = async (bossItem: GameEvent) => {
-      if (!roomState.isInRoom || !roomState.id) { alert("Pro zahájení Raidu musíte být v místnosti!"); return; }
-      let baseHp = 1000; 
-      if (bossItem.stats) {
-          const hpStat = bossItem.stats.find(s => ['HP', 'ZDRAVÍ', 'HEALTH'].includes(s.label.toUpperCase()));
-          if (hpStat) baseHp = parseInt(String(hpStat.value));
-      }
-      const playerCount = Math.max(1, roomState.members.length);
-      const scaledHp = baseHp * playerCount * 3;
-      setCurrentEvent(null); 
-      await apiService.startRaid(roomState.id, bossItem.title, bossItem.id, scaledHp);
-  };
-
-  const handleJoinRoom = async (roomId: string, nick: string, password?: string) => {
-      try {
-          await apiService.joinRoom(roomId, nick, playerHp, password); 
-          setRoomState(prev => ({ ...prev, id: roomId, isInRoom: true, messages: [] }));
-          playSound('success');
-      } catch (e: any) { 
-          playSound('error'); 
-          throw e;
-      }
-  };
-
-  const handleGameSetup = async (nick: string, pClass: PlayerClass, action: string | 'create' | 'solo', password?: string) => {
-      if (userEmail && !isGuest) {
-          localStorage.setItem(`nexus_nickname_${userEmail}`, nick);
-          apiService.saveNickname(userEmail, nick);
-      } else if (isGuest) localStorage.setItem(`nexus_nickname_guest`, nick);
-      
-      setRoomState(prev => ({ ...prev, nickname: nick, isNicknameSet: true }));
-      setPlayerClass(pClass);
-
-      if (action === 'solo') { setIsSoloMode(true); playSound('success'); return; }
-      if (action === 'create') await handleCreateRoom(nick, password); else await handleJoinRoom(action, nick, password);
-  };
-
-  const handleCreateRoom = async (nick: string, password?: string) => {
-      const newRoomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-      try {
-          await apiService.createRoom(newRoomId, nick, password);
-          setRoomState(prev => ({ ...prev, id: newRoomId, isInRoom: true, messages: [] }));
-          const sysMsg: Message = { id: 'sys-start', sender: 'SYSTEM', text: `Místnost ${newRoomId} vytvořena.`, timestamp: Date.now(), isSystem: true };
-          setRoomState(prev => ({...prev, messages: [sysMsg]}));
-          playSound('success');
-      } catch (e) { 
-          setRoomState(prev => ({ ...prev, id: newRoomId, isInRoom: true, messages: [] })); 
-      }
-  };
-
-  const handleSendMessage = async (text: string) => {
-      if (!roomState.id || !text.trim()) return;
-      const tempMsg: Message = { id: Date.now().toString(), sender: roomState.nickname, text, timestamp: Date.now() };
-      setRoomState(prev => ({ ...prev, messages: [...prev.messages, tempMsg] }));
-      try { await apiService.sendMessage(roomState.id, roomState.nickname, text); } catch (e) { }
-  };
-
-  const updateNickname = (nick: string) => { setRoomState(prev => ({ ...prev, nickname: nick, isNicknameSet: true })); };
-
-  // --- GIFT LOGIC ---
-  const handleInitiateGift = (targetEmail: string) => {
-      setGiftTarget(targetEmail);
-      setActiveTab(Tab.INVENTORY);
-      playSound('open');
-  };
-
-  const cancelGiftMode = () => {
-      setGiftTarget(null);
-      setPendingGiftItem(null);
-      setGiftTransferStatus('idle');
-      setActiveTab(Tab.ROOM); 
-      playSound('click');
-  };
-
-  const handleConfirmGift = async () => {
-      if (!userEmail || !giftTarget || !pendingGiftItem) return;
-      setGiftTransferStatus('processing');
-      const itemToSend = pendingGiftItem;
-      try {
-          if (roomState.isInRoom && roomState.id) {
-              const recipientName = giftTarget.split('@')[0];
-              const visibleText = `>> 📦 Odeslal balíček s aktivem [${itemToSend.title}] pro hráče ${recipientName}`;
-              const payload = { targetEmail: giftTarget, item: itemToSend, timestamp: Date.now() };
-              const fullMessage = `${visibleText}|||${JSON.stringify(payload)}`;
-              await apiService.sendMessage(roomState.id, roomState.nickname, fullMessage);
-              const tempMsg: Message = { id: Date.now().toString(), sender: roomState.nickname, text: fullMessage, timestamp: Date.now() };
-              setRoomState(prev => ({ ...prev, messages: [...prev.messages, tempMsg] }));
-          }
-          await performDelete(itemToSend.id);
-          setGiftTransferStatus('success');
-          playSound('success');
-          setTimeout(() => {
-              setPendingGiftItem(null);
-              setGiftTarget(null);
-              setGiftTransferStatus('idle');
-              setActiveTab(Tab.ROOM);
-          }, 1500);
-      } catch (e) {
-          setGiftTransferStatus('error');
-          playSound('error');
-      }
-  };
-
-  const handleReceiveGift = async (item: GameEvent) => {
-      try { setInventory(prev => { const updated = [...prev, item]; if (userEmail) saveToLocalBackup(userEmail, updated); return updated; }); if (!isGuest && userEmail) try { await apiService.saveCard(userEmail, item); } catch (e) {} } catch (e) {}
-      showNotification(`Obdržen předmět: ${item.title}`, 'gift');
-  };
-
-  const handleBuyItem = async (item: GameEvent) => {
-      if (!item.price) return;
-      if (playerGold < item.price) { alert("Nedostatek kreditů!"); playSound('error'); return; }
-      handleGoldChange(-item.price);
-      await handleSaveEvent(item);
-      alert(`Zakoupeno: ${item.title}`);
-      playSound('success');
-  };
-
-  const initiateFriendScan = () => { setScanMode('friend'); setActiveTab(Tab.SCANNER); playSound('click'); };
-
-  const handleTabChange = (tab: Tab) => { 
-      setActiveTab(tab); 
-      playSound('click'); 
-      if (tab === Tab.ROOM) { setUnreadMessagesCount(0); }
-  };
-
-  const handleEditEvent = (event: GameEvent) => { setEditingEvent(event); setCurrentEvent(null); setActiveTab(Tab.GENERATOR); };
-  const closeEvent = () => { setCurrentEvent(null); setIsAdminPreview(false); setInstantEffectValue(null); playSound('click'); };
-  const handleRefreshDatabase = async () => { setIsRefreshing(true); playSound('click'); await loadInventory(); setIsRefreshing(false); };
-  const toggleFullscreen = async () => { try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else if (document.exitFullscreen) await document.exitFullscreen(); } catch (err) {} };
-
-  // Removed unused variable: const isItemInInventory
-  const isScannerPaused = !!currentEvent || !!activeMerchant || !!scanError || !!friendRequestStatus || !!pendingGiftItem || isRaidScreenVisible || showRaidIntro;
-
-  // --- RETURN OBJECT ---
   return {
       userEmail, isAdmin, isGuest, isServerReady, setIsServerReady,
-      isNight, adminNightOverride, setAdminNightOverride, showTimeInfo, setShowTimeInfo,
-      activeTab, setActiveTab: handleTabChange,
-      currentEvent, setCurrentEvent, editingEvent, setEditingEvent,
-      activeMerchant, setActiveMerchant, instantEffectValue,
-      screenFlash, scanError, inventory, loadingInventory,
-      isRefreshing, isFullscreen: false, // Returning hardcoded false as toggle is manual
-      toggleFullscreen, 
-      syncStatus,
-      notification, setNotification, unreadMessagesCount,
-      giftTarget, pendingGiftItem, giftTransferStatus, setPendingGiftItem,
-      activeRaid, isRaidScreenVisible, setIsRaidScreenVisible, showRaidIntro,
-      playerHp, playerGold, playerClass,
-      roomState, isSoloMode,
-      scanMode, friendRequestStatus, setFriendRequestStatus, isScannerPaused,
-      deferredPrompt, installApp, // Export PWA stuff
-      
-      // Handlers
-      handleLogin, handleLogout, handleGameSetup, handleCreateRoom, handleJoinRoom, handleLeaveRoom,
-      handleSendMessage, updateNickname, handleScanCode, handleSaveEvent, handleDeleteEvent, handleUseEvent,
-      handleResolveDilemma, handleHpChange, handleGoldChange, handleBuyItem, handleStartRaid,
-      handleInitiateGift, handleConfirmGift, cancelGiftMode, handleReceiveGift,
-      initiateFriendScan, handleEditEvent, closeEvent, handleRefreshDatabase,
-      getAdjustedItem, handleRemoveLocalItem, handleConsumeItem, ADMIN_EMAIL
+      isNight, adminNightOverride, setAdminNightOverride,
+      activeTab, setActiveTab,
+      currentEvent, setCurrentEvent, activeMerchant, setActiveMerchant,
+      editingEvent, setEditingEvent,
+      screenFlash, inventory, loadingInventory,
+      isRefreshing, notification, setNotification,
+      showEndTurnPrompt, setShowEndTurnPrompt, turnCountdown,
+      playerHp, playerGold, playerMana, playerArmor, playerLuck, playerOxygen, playerClass,
+      roomState, isSoloMode, scanMode, isScannerPaused: !!currentEvent || !!activeMerchant || !!showEndTurnPrompt,
+      isStatsExpanded, setIsStatsExpanded, isAIThinking,
+      masterCatalog, isGameActive,
+      handleLogin: (email: string) => { localStorage.setItem('nexus_current_user', email); setUserEmail(email); if (email !== 'guest') setIsServerReady(false); },
+      handleLogout,
+      handleScanCode, handleSaveEvent, handleDeleteEvent, handleUseEvent, handleRefreshDatabase, handleGameSetup, handleLeaveRoom,
+      handleResolveDilemma: (option: DilemmaOption) => { setActionTakenDuringEvent(true); if (option.effectType === 'hp') handleHpChange(option.effectValue); else if (option.effectType === 'gold') handleGoldChange(option.effectValue); },
+      handleHpChange, handleGoldChange, handleManaChange, handleEndTurn, handleSendMessage,
+      closeEvent, handleOpenInventoryItem, getAdjustedItem, ADMIN_EMAIL,
+      handleToggleLock,
+      giftTarget: null, cancelGiftMode: () => {},
+      soundEnabled, vibrationEnabled, handleToggleSound, handleToggleVibration
   };
 };
