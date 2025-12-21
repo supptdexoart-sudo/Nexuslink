@@ -1,4 +1,4 @@
-import{c as s,j as e,m,h as y,Z as N,d as f,i as p,k as w,w as z,D as S,z as M,E as P,H as V,I as A,r,J as _}from"./index-CZicFcIB.js";import{S as B,B as C}from"./star-jlAmCISb.js";import{C as F}from"./chevron-right-DcfCFPPR.js";import"html5-qrcode";/**
+import{c as s,j as e,m,h as y,Z as N,d as f,i as p,k as w,w as z,D as S,z as M,E as P,H as V,I as A,r,J as _}from"./index-DxAbeTVy.js";import{S as B,B as C}from"./star-DWqXWMtC.js";import{C as F}from"./chevron-right-C-V5orZz.js";import"html5-qrcode";/**
  * @license lucide-react v0.395.0 - ISC
  *
  * This source code is licensed under the ISC license.
