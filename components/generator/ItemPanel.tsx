@@ -1,15 +1,20 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { GameEvent, Stat } from '../../types';
-import { Box, Heart, Swords, Shield, Zap, Coins, Sparkles, Wind, Trash2, Fuel, Hammer } from 'lucide-react';
+import { Box, Heart, Swords, Shield, Zap, Coins, Sparkles, Wind, Trash2, Fuel, Hammer, Scroll, Plus, Clock } from 'lucide-react';
 
 interface ItemPanelProps {
     event: GameEvent;
     onUpdate: (updates: Partial<GameEvent>) => void;
+    masterCatalog?: GameEvent[];
 }
 
-const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
+const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = [] }) => {
     
+    // Local state for adding ingredients
+    const [selectedIngredient, setSelectedIngredient] = useState('');
+    const [ingredientAmount, setIngredientAmount] = useState(1);
+
     const addQuickStat = (label: string, value: string = '+10') => {
         const currentStats = [...(event.stats || [])];
         if (currentStats.some(s => s.label.toUpperCase() === label.toUpperCase())) return;
@@ -38,6 +43,44 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
             }
         });
     };
+
+    const updateCraftingConfig = (field: string, value: any) => {
+        onUpdate({
+            craftingRecipe: {
+                ...(event.craftingRecipe || {
+                    enabled: false,
+                    requiredResources: [],
+                    craftingTimeSeconds: 60
+                }),
+                [field]: value
+            }
+        });
+    };
+
+    const addIngredient = () => {
+        if (!selectedIngredient) return;
+        const currentIngredients = event.craftingRecipe?.requiredResources || [];
+        // Prevent duplicates
+        if (currentIngredients.some(i => i.resourceName === selectedIngredient)) return;
+
+        updateCraftingConfig('requiredResources', [
+            ...currentIngredients,
+            { resourceName: selectedIngredient, amount: ingredientAmount }
+        ]);
+        // Reset amount only, keep selection for fast adding if needed
+        setIngredientAmount(1);
+    };
+
+    const removeIngredient = (index: number) => {
+        const currentIngredients = event.craftingRecipe?.requiredResources || [];
+        updateCraftingConfig('requiredResources', currentIngredients.filter((_, i) => i !== index));
+    };
+
+    // Filter available resources from master catalog for dropdown
+    // We assume items with resourceConfig.isResourceContainer=true are valid ingredients
+    const availableResources = masterCatalog.filter(
+        item => item.resourceConfig?.isResourceContainer
+    );
 
     const quickOptions = [
         { label: 'HP', icon: Heart, color: 'text-red-500' },
@@ -96,7 +139,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
                 </div>
             </div>
 
-            {/* Resource Configuration */}
+            {/* Resource Configuration - IS IT A RESOURCE? */}
             <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.resourceConfig?.isResourceContainer ? 'bg-orange-950/20 border-orange-500/50' : 'bg-black border-arc-border/50'}`}>
                 <label className="flex items-center gap-4 p-4 cursor-pointer">
                     <input 
@@ -107,7 +150,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
                     />
                     <div className="flex flex-col">
                         <span className={`text-[11px] font-black uppercase tracking-widest flex items-center gap-2 ${event.resourceConfig?.isResourceContainer ? 'text-orange-500' : 'text-zinc-400'}`}>
-                            <Hammer className="w-3 h-3" /> Těžba & Suroviny
+                            <Hammer className="w-3 h-3" /> Je to Surovina?
                         </span>
                     </div>
                 </label>
@@ -116,17 +159,17 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
                     <div className="p-4 pt-0 space-y-3 animate-in slide-in-from-top-2">
                         <div className="grid grid-cols-[2fr_1fr] gap-3">
                             <div>
-                                <label className="text-[8px] text-orange-400/70 uppercase font-bold tracking-widest mb-1 block">Název Suroviny (např. Kov)</label>
+                                <label className="text-[8px] text-orange-400/70 uppercase font-bold tracking-widest mb-1 block">Název Suroviny (ID pro crafting)</label>
                                 <input 
                                     type="text" 
                                     value={event.resourceConfig.resourceName || ''} 
                                     onChange={(e) => updateResourceConfig('resourceName', e.target.value)} 
                                     className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono outline-none focus:border-orange-500"
-                                    placeholder="Název suroviny"
+                                    placeholder="např. Kovový šrot"
                                 />
                             </div>
                             <div>
-                                <label className="text-[8px] text-orange-400/70 uppercase font-bold tracking-widest mb-1 block">Množství</label>
+                                <label className="text-[8px] text-orange-400/70 uppercase font-bold tracking-widest mb-1 block">Množství v balíku</label>
                                 <input 
                                     type="number" 
                                     value={event.resourceConfig.resourceAmount || 1} 
@@ -136,7 +179,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
                             </div>
                         </div>
                         <div>
-                            <label className="text-[8px] text-orange-400/70 uppercase font-bold tracking-widest mb-1 block">Vlastní nápis sekce (Volitelné)</label>
+                            <label className="text-[8px] text-orange-400/70 uppercase font-bold tracking-widest mb-1 block">Vlastní nápis v Batohu</label>
                             <input 
                                 type="text" 
                                 value={event.resourceConfig.customLabel || ''} 
@@ -149,6 +192,105 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate }) => {
                 )}
             </div>
 
+            {/* CRAFTING RECIPE CONFIGURATION - IS IT CRAFTABLE? */}
+            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.craftingRecipe?.enabled ? 'bg-cyan-950/20 border-cyan-500/50' : 'bg-black border-arc-border/50'}`}>
+                <label className="flex items-center gap-4 p-4 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={event.craftingRecipe?.enabled || false} 
+                        onChange={(e) => updateCraftingConfig('enabled', e.target.checked)} 
+                        className="w-5 h-5 rounded border-zinc-600 bg-zinc-900 text-cyan-500 focus:ring-cyan-500 accent-cyan-500" 
+                    />
+                    <div className="flex flex-col">
+                        <span className={`text-[11px] font-black uppercase tracking-widest flex items-center gap-2 ${event.craftingRecipe?.enabled ? 'text-cyan-500' : 'text-zinc-400'}`}>
+                            <Scroll className="w-3 h-3" /> Povolit Výrobu (Recept)
+                        </span>
+                    </div>
+                </label>
+
+                {event.craftingRecipe?.enabled && (
+                    <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
+                        
+                        {/* 1. Global Crafting Time */}
+                        <div className="bg-black/40 p-3 rounded border border-cyan-500/20 flex justify-between items-center">
+                            <div className="flex items-center gap-2 text-cyan-400">
+                                <Clock className="w-4 h-4" />
+                                <label className="text-[10px] uppercase font-bold tracking-widest">Doba výroby (sekundy)</label>
+                            </div>
+                            <input 
+                                type="number" 
+                                value={event.craftingRecipe.craftingTimeSeconds || 60} 
+                                onChange={(e) => updateCraftingConfig('craftingTimeSeconds', parseInt(e.target.value))} 
+                                className="w-20 bg-black border border-cyan-500/30 p-2 text-white text-xs font-mono text-center outline-none focus:border-cyan-500"
+                            />
+                        </div>
+
+                        {/* 2. Add Ingredient Form */}
+                        <div className="p-3 bg-zinc-900/50 rounded border border-zinc-700">
+                            <label className="text-[8px] text-zinc-400 uppercase font-bold tracking-widest block mb-2">Přidat Ingredienci</label>
+                            <div className="flex gap-2">
+                                <select 
+                                    value={selectedIngredient}
+                                    onChange={(e) => setSelectedIngredient(e.target.value)}
+                                    className="flex-[2] bg-black border border-zinc-600 text-white text-xs font-mono p-2 rounded outline-none focus:border-cyan-500"
+                                >
+                                    <option value="">-- Vyberte Surovinu --</option>
+                                    {availableResources.map(res => (
+                                        <option key={res.id} value={res.resourceConfig?.resourceName || res.title}>
+                                            {res.resourceConfig?.resourceName || res.title} ({res.id})
+                                        </option>
+                                    ))}
+                                </select>
+                                <input 
+                                    type="number"
+                                    placeholder="Ks"
+                                    value={ingredientAmount}
+                                    onChange={(e) => setIngredientAmount(parseInt(e.target.value))}
+                                    className="w-14 bg-black border border-zinc-600 text-white text-xs text-center font-mono p-2 rounded outline-none focus:border-cyan-500"
+                                />
+                                <button 
+                                    type="button" 
+                                    onClick={addIngredient}
+                                    className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 rounded flex items-center justify-center"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 3. Ingredients List Table */}
+                        <div className="space-y-2">
+                            <label className="text-[8px] text-cyan-400/70 uppercase font-bold tracking-widest block">Seznam Požadovaných Surovin:</label>
+                            
+                            {event.craftingRecipe.requiredResources?.length === 0 && (
+                                <p className="text-[10px] text-zinc-600 italic text-center py-2">Žádné suroviny. Předmět půjde vyrobit zdarma.</p>
+                            )}
+
+                            {event.craftingRecipe.requiredResources?.map((ing, idx) => (
+                                <div key={idx} className="flex gap-2 items-center bg-black p-2 border border-cyan-500/20 rounded hover:border-cyan-500/50 transition-colors">
+                                    <div className="flex-1">
+                                        <span className="text-[10px] font-bold text-zinc-400 block uppercase tracking-wide">Surovina</span>
+                                        <span className="text-xs text-white font-mono">{ing.resourceName}</span>
+                                    </div>
+                                    <div className="px-3 border-l border-zinc-800">
+                                        <span className="text-[10px] font-bold text-zinc-400 block uppercase tracking-wide">Množství</span>
+                                        <span className="text-xs text-cyan-400 font-mono font-bold">x{ing.amount}</span>
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => removeIngredient(idx)} 
+                                        className="text-red-500 hover:text-red-400 p-2 ml-2"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* STATS CONFIG */}
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
                     <label className="text-[8px] text-zinc-400 uppercase font-bold tracking-widest">Aktivní_stats na kartě:</label>

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { GameEvent } from '../../types';
-import { Satellite, Wind, Shield, Battery, Radio } from 'lucide-react';
+import { Satellite, Wind, Shield, Fuel, Radio } from 'lucide-react';
 
 interface SpaceStationPanelProps {
     event: GameEvent;
@@ -14,9 +14,9 @@ const SpaceStationPanel: React.FC<SpaceStationPanelProps> = ({ event, onUpdate }
         onUpdate({
             stationConfig: {
                 ...(event.stationConfig || { 
-                    o2RefillPrice: 10, 
-                    armorRepairPrice: 50, 
-                    energyRechargePrice: 25,
+                    fuelReward: 50, 
+                    repairAmount: 30, 
+                    refillO2: true,
                     welcomeMessage: "Vítejte na palubě."
                 }),
                 [field]: value
@@ -42,34 +42,41 @@ const SpaceStationPanel: React.FC<SpaceStationPanelProps> = ({ event, onUpdate }
                 />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
                 <div>
-                    <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest flex items-center gap-1 mb-1"><Wind className="w-3 h-3 text-cyan-200"/> O2 Refill (Gold)</label>
+                    <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest flex items-center gap-1 mb-1"><Fuel className="w-3 h-3 text-orange-500"/> Palivo (Darování)</label>
                     <input 
                         type="number" 
-                        value={event.stationConfig?.o2RefillPrice ?? 10} 
-                        onChange={(e) => updateConfig('o2RefillPrice', parseInt(e.target.value))} 
+                        value={event.stationConfig?.fuelReward ?? 50} 
+                        onChange={(e) => updateConfig('fuelReward', parseInt(e.target.value))} 
                         className="w-full bg-black border border-cyan-500/30 p-2 text-white font-mono text-sm text-center" 
                     />
                 </div>
                 <div>
-                    <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest flex items-center gap-1 mb-1"><Shield className="w-3 h-3 text-slate-300"/> Repair (Gold)</label>
+                    <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest flex items-center gap-1 mb-1"><Shield className="w-3 h-3 text-slate-300"/> Oprava Lodi (+HP)</label>
                     <input 
                         type="number" 
-                        value={event.stationConfig?.armorRepairPrice ?? 50} 
-                        onChange={(e) => updateConfig('armorRepairPrice', parseInt(e.target.value))} 
+                        value={event.stationConfig?.repairAmount ?? 30} 
+                        onChange={(e) => updateConfig('repairAmount', parseInt(e.target.value))} 
                         className="w-full bg-black border border-cyan-500/30 p-2 text-white font-mono text-sm text-center" 
                     />
                 </div>
-                <div>
-                    <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest flex items-center gap-1 mb-1"><Battery className="w-3 h-3 text-green-400"/> Energy (Gold)</label>
-                    <input 
-                        type="number" 
-                        value={event.stationConfig?.energyRechargePrice ?? 25} 
-                        onChange={(e) => updateConfig('energyRechargePrice', parseInt(e.target.value))} 
-                        className="w-full bg-black border border-cyan-500/30 p-2 text-white font-mono text-sm text-center" 
-                    />
+            </div>
+
+            <div className="bg-black/40 border border-cyan-500/20 p-3 rounded flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Wind className="w-4 h-4 text-cyan-200" />
+                    <span className="text-[10px] uppercase font-bold text-zinc-300">Doplnit Kyslík (100%)</span>
                 </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={event.stationConfig?.refillO2 ?? true} 
+                        onChange={(e) => updateConfig('refillO2', e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                </label>
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Rocket, Fuel, Shield, Navigation, AlertTriangle, Map, Crosshair, ChevronRight, Gauge } from 'lucide-react';
+import { Rocket, Fuel, Shield, Navigation, AlertTriangle, Crosshair, ChevronRight, Gauge } from 'lucide-react';
 import { playSound, vibrate } from '../services/soundService';
 
 const PLANETS = [
@@ -16,9 +16,9 @@ interface SpaceshipViewProps {
 }
 
 const SpaceshipView: React.FC<SpaceshipViewProps> = ({ playerFuel = 0 }) => {
-    // Removed local fuel state, using prop
-    const [hull, setHull] = useState(100);
-    const [shields, setShields] = useState(60);
+    // Removed unused setters
+    const [hull] = useState(100);
+    const [shields] = useState(60);
     const [isTraveling, setIsTraveling] = useState(false);
     const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
 

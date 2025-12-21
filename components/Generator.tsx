@@ -22,6 +22,7 @@ interface GeneratorProps {
   initialData?: GameEvent | null;
   onClearData?: () => void;
   onDelete?: (id: string) => void;
+  masterCatalog?: GameEvent[]; // Added
 }
 
 const initialEventState: GameEvent = {
@@ -39,11 +40,12 @@ const initialEventState: GameEvent = {
   trapConfig: { difficulty: 10, damage: 20, disarmClass: PlayerClass.ROGUE, successMessage: "Past zneškodněna.", failMessage: "Past sklapla!" },
   enemyLoot: { goldReward: 20, xpReward: 10, dropItemChance: 0 },
   timeVariant: { enabled: false, nightStats: [] },
-  stationConfig: { o2RefillPrice: 10, armorRepairPrice: 50, energyRechargePrice: 25, welcomeMessage: "Vítejte na palubě." },
-  resourceConfig: { isResourceContainer: false, resourceName: 'Surovina', resourceAmount: 1, customLabel: 'Surovina k Těžbě' }
+  stationConfig: { fuelReward: 50, repairAmount: 30, refillO2: true, welcomeMessage: "Vítejte na palubě." },
+  resourceConfig: { isResourceContainer: false, resourceName: 'Surovina', resourceAmount: 1, customLabel: 'Surovina k Těžbě' },
+  craftingRecipe: { enabled: false, requiredResources: [], craftingTimeSeconds: 60 }
 };
 
-const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialData, onClearData, onDelete }) => {
+const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialData, onClearData, onDelete, masterCatalog = [] }) => {
   const [newEvent, setNewEvent] = useState<GameEvent>(initialEventState);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' | null }>({ message: '', type: null });
   const [isEditingMode, setIsEditingMode] = useState(false);
@@ -53,15 +55,21 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
 
   useEffect(() => {
     if (initialData) {
-      // Robust merging: Ensure price and resourceConfig are preserved even if initialData is incomplete or structured differently
       setNewEvent({ 
           ...initialEventState, 
           ...initialData,
           price: (initialData.price !== undefined && initialData.price !== null) ? initialData.price : initialEventState.price,
           resourceConfig: { 
-              ...initialEventState.resourceConfig, 
-              ...(initialData.resourceConfig || {}) 
-          } 
+              isResourceContainer: initialData.resourceConfig?.isResourceContainer ?? false,
+              resourceName: initialData.resourceConfig?.resourceName ?? 'Surovina',
+              resourceAmount: initialData.resourceConfig?.resourceAmount ?? 1,
+              customLabel: initialData.resourceConfig?.customLabel
+          },
+          craftingRecipe: {
+              enabled: initialData.craftingRecipe?.enabled ?? false,
+              requiredResources: initialData.craftingRecipe?.requiredResources ?? [],
+              craftingTimeSeconds: initialData.craftingRecipe?.craftingTimeSeconds ?? 60
+          }
       });
       setIsEditingMode(true);
     } else {
@@ -216,7 +224,7 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* ITEM CONFIGURATION */}
                 {newEvent.type === GameEventType.ITEM && (
-                    <ItemPanel event={newEvent} onUpdate={updateEvent} />
+                    <ItemPanel event={newEvent} onUpdate={updateEvent} masterCatalog={masterCatalog} />
                 )}
 
                 {/* TRAP CONFIGURATION */}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react'; 
 import { GameEvent, GameEventType, DilemmaOption } from '../types';
-import { X, ChevronRight, AlertTriangle, Info, Trash2, Skull, Crown, ShoppingBag, Zap, Shield, Swords, Coins, Heart, Footprints, Cross, Wand2, Sword, Scan, Map, Compass, Navigation, ArrowRight, CornerDownRight, Percent, Satellite, Wind, Battery, Radio, Hammer, Box } from 'lucide-react'; 
+import { X, Info, Trash2, Skull, Crown, ShoppingBag, Zap, Shield, Swords, Coins, Heart, Footprints, Cross, Wand2, Sword, Scan, Map, Compass, Navigation, ArrowRight, CornerDownRight, Percent, Satellite, Wind, Radio, Hammer, Box, Fuel } from 'lucide-react'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService'; 
 
@@ -198,38 +198,38 @@ const EventCard: React.FC<EventCardProps> = ({
                <p className="text-xs text-zinc-300 italic mb-4">"{event.stationConfig?.welcomeMessage || 'Vítejte na palubě. Systémy jsou funkční.'}"</p>
                
                <div className="space-y-2">
-                   <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
+                   <div className="flex justify-between items-center bg-black/40 p-3 rounded border border-green-500/20">
                        <div className="flex items-center gap-2">
                            <Wind className="w-4 h-4 text-cyan-300" />
-                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Doplnění Kyslíku (O2)</span>
+                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Kyslík (O2)</span>
                        </div>
-                       <div className="text-yellow-500 font-mono text-xs font-bold flex items-center gap-1">
-                           {event.stationConfig?.o2RefillPrice || 10} <Coins className="w-3 h-3"/>
+                       <div className="text-green-500 font-mono text-xs font-bold flex items-center gap-1 uppercase">
+                           {event.stationConfig?.refillO2 ? 'DOPLNĚNÍ NA 100%' : '---'}
                        </div>
                    </div>
 
-                   <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
+                   <div className="flex justify-between items-center bg-black/40 p-3 rounded border border-green-500/20">
                        <div className="flex items-center gap-2">
                            <Shield className="w-4 h-4 text-slate-300" />
-                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Oprava Pláště (Armor)</span>
+                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Oprava Pláště</span>
                        </div>
-                       <div className="text-yellow-500 font-mono text-xs font-bold flex items-center gap-1">
-                           {event.stationConfig?.armorRepairPrice || 50} <Coins className="w-3 h-3"/>
+                       <div className="text-green-500 font-mono text-xs font-bold flex items-center gap-1">
+                           +{event.stationConfig?.repairAmount || 30} HP
                        </div>
                    </div>
 
-                   <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
+                   <div className="flex justify-between items-center bg-black/40 p-3 rounded border border-green-500/20">
                        <div className="flex items-center gap-2">
-                           <Battery className="w-4 h-4 text-green-400" />
-                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Dobíjení (Mana)</span>
+                           <Fuel className="w-4 h-4 text-orange-400" />
+                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Doplnění Paliva</span>
                        </div>
-                       <div className="text-yellow-500 font-mono text-xs font-bold flex items-center gap-1">
-                           {event.stationConfig?.energyRechargePrice || 25} <Coins className="w-3 h-3"/>
+                       <div className="text-green-500 font-mono text-xs font-bold flex items-center gap-1">
+                           +{event.stationConfig?.fuelReward || 50}
                        </div>
                    </div>
                </div>
           </div>
-          <p className="text-[9px] text-zinc-500 text-center uppercase">Transakce probíhají manuální dedukcí kreditů v HUD.</p>
+          <p className="text-[9px] text-green-500 text-center uppercase font-bold">Odměna za přistání na stanici</p>
       </div>
   );
 
@@ -467,11 +467,11 @@ const EventCard: React.FC<EventCardProps> = ({
                             <span>+{rew.value} {rew.type}</span>
                         </div>
                     ))}
-                    {/* Backward compatibility for old effectType */}
+                    {/* Backward compatibility for old effectType - FIXED TS ERROR HERE */}
                     {dilemmaOutcome === 'success' && !selectedOption?.rewards && selectedOption?.effectType && selectedOption.effectType !== 'none' && (
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${selectedOption.effectValue > 0 ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${(selectedOption.effectValue ?? 0) > 0 ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
                             {selectedOption.effectType === 'hp' ? <Heart className="w-3 h-3" /> : <Coins className="w-3 h-3" />}
-                            <span>{selectedOption.effectValue > 0 ? '+' : ''}{selectedOption.effectValue} {selectedOption.effectType.toUpperCase()}</span>
+                            <span>{(selectedOption.effectValue ?? 0) > 0 ? '+' : ''}{selectedOption.effectValue} {selectedOption.effectType.toUpperCase()}</span>
                         </div>
                     )}
 
@@ -511,7 +511,7 @@ const EventCard: React.FC<EventCardProps> = ({
                     {event.type === GameEventType.TRAP ? 'Pokusit se Odejít' : 
                      event.type === GameEventType.ENCOUNTER ? 'Zahájit Boj' : 
                      event.type === GameEventType.MERCHANT ? 'Otevřít Obchod' :
-                     event.type === GameEventType.SPACE_STATION ? 'Dokovat' : 'Použít'}
+                     event.type === GameEventType.SPACE_STATION ? 'Dokovat a Doplnit' : 'Použít'}
                 </button>
               )}
               {dilemmaStep === 'RESULT' && isDilemma && (

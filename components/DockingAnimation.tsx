@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Satellite, Crosshair, ChevronUp, Lock, Zap, Activity, Radio, Cpu } from 'lucide-react';
+import { Satellite, Crosshair, ChevronUp, Lock, Radio, Cpu } from 'lucide-react';
 import { playSound, vibrate } from '../services/soundService';
 
 interface DockingAnimationProps {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense, lazy, ReactNode, ErrorInfo, Component } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameLogic, Tab } from './hooks/useGameLogic';
@@ -11,7 +12,7 @@ import DockingAnimation from './components/DockingAnimation';
 import SpaceStationView from './components/SpaceStationView'; // IMPORT
 import { 
   Scan, Box, Hammer, Users, Settings as SettingsIcon, 
-  Sun, Moon, Heart, Zap, Coins, Shield, Star, 
+  Sun, Moon, Heart, Zap, Coins, Shield, 
   Wind, Loader2, AlertTriangle, Rocket, Fuel
 } from 'lucide-react';
 import { playSound, vibrate } from './services/soundService';
@@ -45,7 +46,7 @@ class ModuleErrorBoundary extends Component<ModuleErrorBoundaryProps, ModuleErro
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): ModuleErrorBoundaryState { 
+  static getDerivedStateFromError(_: Error): ModuleErrorBoundaryState { 
     return { hasError: true }; 
   }
   
@@ -243,6 +244,7 @@ const App: React.FC = () => {
                   <Generator 
                     onSaveCard={logic.handleSaveEvent} userEmail={logic.userEmail || ''} initialData={logic.editingEvent}
                     onClearData={() => logic.setEditingEvent(null)} onDelete={logic.handleDeleteEvent}
+                    masterCatalog={logic.masterCatalog} // Added prop
                   />
                 </motion.div>
               )}
@@ -251,7 +253,7 @@ const App: React.FC = () => {
                 <motion.div key="room" {...({ initial: { opacity: 0 }, animate: { opacity: 1, exit: { opacity: 0 } } } as any)} className="absolute inset-0">
                   <Room 
                     roomState={logic.roomState} inventory={logic.inventory} playerHp={logic.playerHp} scanLog={logic.scanLog}
-                    onLeaveRoom={logic.handleLeaveRoom} onExitToMenu={logic.handleExitToMenu} onSendMessage={logic.handleSendMessage} onStartGame={logic.handleStartGame}
+                    onExitToMenu={logic.handleExitToMenu} onSendMessage={logic.handleSendMessage} onStartGame={logic.handleStartGame}
                     onInspectItem={logic.handleInspectItem} onSwapItems={logic.handleSwapItems} userEmail={logic.userEmail || undefined}
                   />
                 </motion.div>
@@ -299,6 +301,9 @@ const App: React.FC = () => {
            <SpaceStationView 
               station={logic.activeStation} 
               onLeave={logic.handleLeaveStation}
+              onClaimRewards={logic.handleClaimStationRewards}
+              inventory={logic.inventory} // Added
+              masterCatalog={logic.masterCatalog} // Added
            />
         )}
       </AnimatePresence>

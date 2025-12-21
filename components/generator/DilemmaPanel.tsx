@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { GameEvent, DilemmaOption, DilemmaReward } from '../../types';
-import { Split, User, Globe, X, Percent, Skull, Plus, Coins, Heart, Zap, Sparkles } from 'lucide-react';
+import { Split, User, Globe, X, Percent, Skull, Plus } from 'lucide-react';
 
 interface DilemmaPanelProps {
     event: GameEvent;

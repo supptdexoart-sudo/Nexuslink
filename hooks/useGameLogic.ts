@@ -177,7 +177,10 @@ export const useGameLogic = () => {
 
   const handleFuelChange = (amount: number) => {
     setPlayerFuel(prev => {
-        const newValue = Math.max(0, Math.min(MAX_PLAYER_FUEL, prev + amount));
+        // Ensure prev is a number just in case
+        const currentFuel = Number(prev) || 0;
+        const change = Number(amount) || 0;
+        const newValue = Math.max(0, Math.min(MAX_PLAYER_FUEL, currentFuel + change));
         localStorage.setItem('nexus_player_fuel', String(newValue));
         return newValue;
     });
@@ -217,16 +220,12 @@ export const useGameLogic = () => {
         const serverResponse = await apiService.saveCard(userEmail, event);
         
         // CRITICAL FIX: Merge server response with local event data.
-        // This ensures that if the backend (MongoDB schema) strips new fields like 'resourceConfig' or 'price',
-        // we keep the local version in our state so the UI updates correctly immediately.
-        // We trust the server for the ID and basic structure, but trust the local input for content fields.
         const mergedEvent: GameEvent = {
-            ...serverResponse, // Start with server confirmation (has _id, timestamps)
-            ...event,          // Overwrite with local data (has resourceConfig, price)
-            id: serverResponse.id // Ensure we use the canonical ID from server
+            ...serverResponse, 
+            ...event,          
+            id: serverResponse.id 
         };
 
-        // Update Inventory state with merged data
         setInventory(prev => {
           const exists = prev.find(i => i.id === mergedEvent.id);
           const newInv = exists ? prev.map(i => i.id === mergedEvent.id ? mergedEvent : i) : [...prev, mergedEvent];
@@ -234,7 +233,6 @@ export const useGameLogic = () => {
           return newInv;
         });
 
-        // Also update Master Catalog if Admin
         if (isAdmin) {
             setMasterCatalog(prev => {
                 const exists = prev.find(i => i.id === mergedEvent.id);
@@ -285,6 +283,115 @@ export const useGameLogic = () => {
     } catch (e) {
       setNotification({ id: 'err-' + Date.now(), message: 'Chyba při mazání.', type: 'error' });
     }
+  };
+
+  const handleCraftItem = async (recipeItem: GameEvent) => {
+      if (!recipeItem.craftingRecipe?.requiredResources) return;
+
+      const requiredResources = recipeItem.craftingRecipe.requiredResources;
+      let newInventory = [...inventory];
+      let resourcesConsumed = true;
+
+      // 1. DEDUCT RESOURCES
+      for (const req of requiredResources) {
+          let needed = req.amount;
+          
+          // Find items in local newInventory that match the resource name
+          // Loop until 'needed' is 0
+          for (let i = 0; i < newInventory.length; i++) {
+              if (needed <= 0) break;
+              
+              const item = newInventory[i];
+              if (item.resourceConfig?.isResourceContainer && item.resourceConfig.resourceName === req.resourceName) {
+                  const available = item.resourceConfig.resourceAmount || 0;
+                  
+                  if (available > needed) {
+                      // Decrease amount
+                      newInventory[i] = {
+                          ...item,
+                          resourceConfig: {
+                              ...item.resourceConfig,
+                              resourceAmount: available - needed
+                          }
+                      };
+                      needed = 0;
+                  } else {
+                      // Consume entire stack/card
+                      needed -= available;
+                      // Mark for deletion by setting amount to 0 (will filter later) or we can filter out now
+                      // But changing array index while iterating is risky, so we just mark it.
+                      newInventory[i] = {
+                          ...item,
+                          resourceConfig: {
+                              ...item.resourceConfig,
+                              resourceAmount: 0 // Mark as empty
+                          }
+                      };
+                  }
+              }
+          }
+
+          if (needed > 0) {
+              resourcesConsumed = false; // Failed to find enough
+              break;
+          }
+      }
+
+      if (!resourcesConsumed) {
+          setNotification({ id: 'craft-fail', type: 'error', message: 'Chyba při spotřebě surovin.' });
+          return;
+      }
+
+      // 2. CLEANUP INVENTORY (Remove empty stacks) AND UPDATE DB
+      // We need to delete cards that reached 0 amount from the database as well.
+      // This is a bit complex for bulk updates, so we will do best effort.
+      const itemsToRemove = newInventory.filter(i => i.resourceConfig?.isResourceContainer && (i.resourceConfig?.resourceAmount || 0) <= 0);
+      const itemsToUpdate = newInventory.filter(i => i.resourceConfig?.isResourceContainer && (i.resourceConfig?.resourceAmount || 0) > 0);
+      
+      // Keep non-resources untouched
+      const otherItems = newInventory.filter(i => !i.resourceConfig?.isResourceContainer);
+      
+      const finalInventory = [...otherItems, ...itemsToUpdate];
+
+      // 3. ADD NEW ITEM (The Crafted Result)
+      // Need a unique ID for the new item. 
+      const newItem = { 
+          ...recipeItem, 
+          id: `CRAFTED-${Math.random().toString(36).substr(2, 6).toUpperCase()}` 
+      };
+      
+      finalInventory.push(newItem);
+
+      // 4. PERSIST CHANGES
+      if (isGuest || !userEmail) {
+          setInventory(finalInventory);
+          localStorage.setItem(`nexus_inv_${userEmail || 'guest'}`, JSON.stringify(finalInventory));
+      } else {
+          try {
+              // Delete consumed cards
+              for (const item of itemsToRemove) {
+                  await apiService.deleteCard(userEmail, item.id);
+              }
+              // Update changed stacks (This assumes we can just save over the existing ID)
+              for (const item of itemsToUpdate) {
+                  await apiService.saveCard(userEmail, item);
+              }
+              // Save new item
+              await apiService.saveCard(userEmail, newItem);
+              
+              // Refresh local
+              const serverInv = await apiService.getInventory(userEmail);
+              setInventory(serverInv);
+              localStorage.setItem(`nexus_inv_${userEmail}`, JSON.stringify(serverInv));
+          } catch (e) {
+              setNotification({ id: 'craft-sync-err', type: 'error', message: 'Chyba synchronizace výroby.' });
+              // Fallback to local update
+              setInventory(finalInventory);
+          }
+      }
+
+      addToLog(`Vyrobeno: ${newItem.title}`);
+      setNotification({ id: 'craft-success', type: 'success', message: `${newItem.title} úspěšně vyroben!` });
   };
 
   const handleRefreshDatabase = async () => {
@@ -347,7 +454,6 @@ export const useGameLogic = () => {
     }
   };
 
-  // Used for "Offline Solo" mode toggling - puts the app in a local state
   const handleLeaveRoom = async () => {
     if (roomState.id && roomState.nickname) {
       await apiService.leaveRoom(roomState.id, roomState.nickname);
@@ -360,7 +466,6 @@ export const useGameLogic = () => {
     setScanLog([]);
   };
 
-  // Used to go back to the MAIN MENU (GameSetup) to Create/Join new rooms
   const handleExitToMenu = async () => {
     if (roomState.id && roomState.nickname) {
         try { await apiService.leaveRoom(roomState.id, roomState.nickname); } catch(e) {}
@@ -499,7 +604,6 @@ export const useGameLogic = () => {
       // DEDUCT FUEL ON SCAN
       if (source === 'scanner') {
           handleFuelChange(-5); // 5% per scan
-          // Inform player about fuel usage
           addToLog(`Manévr lodi: -5% Paliva`);
       }
 
@@ -523,23 +627,55 @@ export const useGameLogic = () => {
 
   const handleDockingComplete = () => {
       setIsDocking(false);
-      // Event is already set in currentEvent, simply removing the animation layer reveals it
+      // REMOVED AUTO REWARDS - Now handled in handleClaimStationRewards inside the view
+      if (currentEvent && currentEvent.type === GameEventType.SPACE_STATION) {
+          setActiveStation(currentEvent);
+          setCurrentEvent(null);
+          addToLog(`Dokováno: ${currentEvent.title}`);
+          playSound('success');
+          // Removed setScreenFlash('green') to fix persistent filter issue
+      }
+  };
+
+  const handleClaimStationRewards = (station: GameEvent) => {
+      // 1. Refill O2
+      if (station.stationConfig?.refillO2) {
+          setPlayerOxygen(100);
+          localStorage.setItem('nexus_player_oxygen', "100");
+      }
+      
+      // 2. Grant Fuel - Explicit cast and log
+      const fuelAmount = station.stationConfig?.fuelReward ? Number(station.stationConfig.fuelReward) : 0;
+      if (fuelAmount > 0) {
+          handleFuelChange(fuelAmount);
+          addToLog(`Tankování: +${fuelAmount} Jednotek`);
+      }
+      
+      // 3. Repair Ship
+      if (station.stationConfig?.repairAmount) {
+          handleHpChange(station.stationConfig.repairAmount);
+      }
+
+      // Feedback
+      playSound('success');
+      setNotification({ id: 'station-rewards', type: 'success', message: 'Servisní úkony dokončeny.' });
+      
+      // Short Green Flash
+      setScreenFlash('green');
+      setTimeout(() => setScreenFlash(null), 500);
   };
 
   const handleResolveDilemma = (option: DilemmaOption, result: 'success' | 'fail') => {
       setActionTakenDuringEvent(true);
       
       if (result === 'success') {
-          // Apply rewards
           if (option.rewards) {
               option.rewards.forEach(rew => {
                   if (rew.type === 'HP') handleHpChange(rew.value);
                   if (rew.type === 'GOLD') handleGoldChange(rew.value);
                   if (rew.type === 'MANA') handleManaChange(rew.value);
-                  // XP would go here
               });
           }
-          // Legacy support
           /* @ts-ignore */
           if (option.effectType === 'hp') handleHpChange(option.effectValue);
           /* @ts-ignore */
@@ -547,7 +683,6 @@ export const useGameLogic = () => {
           
           addToLog(`Dilema: ${option.label} (ÚSPĚCH)`);
       } else {
-          // Apply failure penalty
           if (option.failDamage) {
               handleHpChange(-Math.abs(option.failDamage));
           }
@@ -562,11 +697,13 @@ export const useGameLogic = () => {
           return;
       }
 
-      // NEW: Special handling for entering Space Station
+      // Special handling for entering Space Station (Manual Trigger via Inventory)
       if (event.type === GameEventType.SPACE_STATION) {
+          // No auto rewards here either, just open view
           setActiveStation(event);
           setCurrentEvent(null);
           addToLog(`Dokováno: ${event.title}`);
+          playSound('success');
           return;
       }
 
@@ -592,6 +729,7 @@ export const useGameLogic = () => {
           addToLog(`Spotřebováno z Batohu: ${event.title}`);
           setNotification({ id: 'use', type: 'success', message: `${event.title} použito!` });
           setScreenFlash('green');
+          setTimeout(() => setScreenFlash(null), 500); // FIX: Ensure timeout for flash
       } else { 
           setScreenFlash('green'); 
           playSound('success'); 
@@ -643,7 +781,8 @@ export const useGameLogic = () => {
       isAIThinking, showTurnAlert, showRoundEndAlert, handleAcknowledgeRound,
       isMyTurn, isBlocked, handleStartGame,
       isDocking, handleDockingComplete,
-      activeStation, handleLeaveStation, // NEW EXPORTS
+      activeStation, handleLeaveStation, handleClaimStationRewards,
+      masterCatalog, // EXPORTED MASTER CATALOG
       handleLogin: (email: string) => { localStorage.setItem('nexus_current_user', email); setUserEmail(email); if (email !== 'guest') setIsServerReady(false); },
       handleLogout: () => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); },
       handleScanCode, handleSaveEvent, handleDeleteEvent, handleUseEvent, handleRefreshDatabase, handleGameSetup, handleLeaveRoom, handleExitToMenu,
@@ -654,6 +793,7 @@ export const useGameLogic = () => {
       handleToggleSound: () => { toggleSoundSystem(!soundEnabled); setSoundEnabled(!soundEnabled); }, 
       handleToggleVibration: () => { toggleVibrationSystem(!vibrationEnabled); setVibrationEnabled(!vibrationEnabled); },
       handleInspectItem,
+      handleCraftItem, // EXPORT NEW FUNCTION
       scanLog
   };
 };

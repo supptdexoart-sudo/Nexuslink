@@ -28,7 +28,6 @@ interface RoomProps {
   inventory: GameEvent[];
   playerHp?: number;
   scanLog?: string[];
-  onLeaveRoom: () => void;
   onExitToMenu: () => void;
   onSendMessage: (text: string) => void;
   onStartGame?: () => void;
@@ -38,7 +37,7 @@ interface RoomProps {
 }
 
 const Room: React.FC<RoomProps> = ({ 
-    roomState, inventory, playerHp, scanLog = [], onLeaveRoom, onExitToMenu, onSendMessage, onStartGame, onInspectItem, onSwapItems, userEmail
+    roomState, inventory, playerHp, scanLog = [], onExitToMenu, onSendMessage, onStartGame, onInspectItem, onSwapItems, userEmail
 }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'party' | 'trade'>('party');
   const [newMessage, setNewMessage] = useState('');
@@ -360,7 +359,7 @@ const Room: React.FC<RoomProps> = ({
                                 <div className="p-3 bg-white/10 rounded-xl text-white group-hover:scale-110 transition-transform"><Globe className="w-6 h-6" /></div>
                                 <div>
                                     <h4 className="font-black text-white uppercase text-sm tracking-widest">Samostatná Mise (Online)</h4>
-                                    <p className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Pokračovat sólo se synchronizací Batohu</p>
+                                    <p className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Pokračovat sólo se synchronizací Vaultu</p>
                                 </div>
                             </button>
                         </div>

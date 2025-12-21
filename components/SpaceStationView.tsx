@@ -1,20 +1,31 @@
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { GameEvent } from '../types';
 import { 
-  LogOut, Satellite, Activity, Shield, Zap, Wind, 
-  ShoppingBag, PenTool, Database, Radio, LayoutGrid, AlertCircle
+  LogOut, Satellite, Activity, Shield, Wind, 
+  CheckCircle, Fuel, ArrowUpCircle, Search, Hammer, Globe, Construction, Check
 } from 'lucide-react';
 import { playSound } from '../services/soundService';
+import FactoryView from './FactoryView';
 
 interface SpaceStationViewProps {
   station: GameEvent;
   onLeave: () => void;
+  onClaimRewards?: (station: GameEvent) => void;
+  onCraft?: (item: GameEvent) => void; // Added
+  inventory?: GameEvent[];
+  masterCatalog?: GameEvent[];
 }
 
-const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave }) => {
+const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave, onClaimRewards, onCraft, inventory = [], masterCatalog = [] }) => {
   const [bootSequence, setBootSequence] = useState(true);
+  const [showConfirmLeave, setShowConfirmLeave] = useState(false);
+  const [constructionMessage, setConstructionMessage] = useState<string | null>(null);
+  const [rewardsClaimed, setRewardsClaimed] = useState(false);
+  
+  // Factory State
+  const [showFactory, setShowFactory] = useState(false);
 
   useEffect(() => {
     playSound('open');
@@ -22,16 +33,27 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave })
     return () => clearTimeout(timer);
   }, []);
 
-  const menuItems = [
-    { id: 'repair', label: 'Opravna', icon: <PenTool className="w-6 h-6" />, desc: 'Opravy pláště a modulů', disabled: true },
-    { id: 'market', label: 'Tržiště', icon: <ShoppingBag className="w-6 h-6" />, desc: 'Nákup zásob a vybavení', disabled: true },
-    { id: 'support', label: 'Podpora Života', icon: <Wind className="w-6 h-6" />, desc: 'Doplnění O2 zásob', disabled: true },
-    { id: 'reactor', label: 'Reaktor', icon: <Zap className="w-6 h-6" />, desc: 'Dobíjení energetických článků', disabled: true },
-  ];
+  const handleClaim = () => {
+      if (!rewardsClaimed && onClaimRewards) {
+          onClaimRewards(station);
+          setRewardsClaimed(true);
+      }
+  };
 
-  const handleUndock = () => {
+  const handleUndockClick = () => {
     playSound('click');
-    onLeave();
+    setShowConfirmLeave(true);
+  };
+
+  const confirmUndock = () => {
+      setShowConfirmLeave(false);
+      onLeave();
+  };
+
+  const handleUnderConstruction = (feature: string) => {
+      playSound('error');
+      setConstructionMessage(feature);
+      setTimeout(() => setConstructionMessage(null), 2000);
   };
 
   if (bootSequence) {
@@ -40,7 +62,7 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave })
         <div className="text-center space-y-4">
           <Satellite className="w-16 h-16 text-cyan-500 animate-pulse mx-auto" />
           <div className="space-y-1">
-            <p className="text-xs text-cyan-500 uppercase tracking-[0.2em] font-bold">Navazování spojení...</p>
+            <p className="text-xs text-cyan-500 uppercase tracking-[0.2em] font-bold">Iniciace Servisních Protokolů...</p>
             <p className="text-xl text-white font-black uppercase tracking-widest">{station.title}</p>
           </div>
           <div className="w-48 h-1 bg-zinc-800 rounded-full mx-auto overflow-hidden">
@@ -78,7 +100,7 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave })
                 <h1 className="text-2xl font-black uppercase tracking-tighter leading-none">{station.title}</h1>
                 <div className="flex items-center gap-2 mt-1">
                     <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    <span className="text-[10px] font-mono text-cyan-500/80 uppercase tracking-widest">Systémy Online • ID: {station.id}</span>
+                    <span className="text-[10px] font-mono text-cyan-500/80 uppercase tracking-widest">Připojení Stabilní • ID: {station.id}</span>
                 </div>
             </div>
         </div>
@@ -91,92 +113,217 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave })
       </header>
 
       {/* MAIN DASHBOARD */}
-      <main className="flex-1 relative z-10 p-6 overflow-y-auto no-scrollbar">
+      <main className="flex-1 relative z-10 p-6 overflow-y-auto no-scrollbar pb-32">
         
         {/* Welcome Message */}
         <div className="mb-8 p-6 bg-gradient-to-r from-cyan-900/20 to-transparent border-l-4 border-cyan-500 rounded-r-xl">
-             <h2 className="text-lg font-bold text-cyan-100 mb-1">Vítejte, veliteli.</h2>
-             <p className="text-sm text-cyan-400/60 font-mono">"{station.stationConfig?.welcomeMessage || 'Stanice je plně operabilní.'}"</p>
+             <h2 className="text-lg font-bold text-cyan-100 mb-1">Diagnostika lodi.</h2>
+             <p className="text-sm text-cyan-400/60 font-mono">"{station.stationConfig?.welcomeMessage || 'Dostupné servisní úkony nalezeny.'}"</p>
         </div>
 
-        {/* Status Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-black/40 border border-white/5 p-4 rounded-xl">
-                <div className="flex justify-between items-start mb-2">
-                    <Shield className="w-5 h-5 text-zinc-500" />
-                    <span className="text-[10px] font-bold text-green-500">100%</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Integrita Štítů</p>
-            </div>
-            <div className="bg-black/40 border border-white/5 p-4 rounded-xl">
-                <div className="flex justify-between items-start mb-2">
-                    <Radio className="w-5 h-5 text-zinc-500" />
-                    <span className="text-[10px] font-bold text-cyan-500">SILNÝ</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Signál Sektoru</p>
-            </div>
-            <div className="bg-black/40 border border-white/5 p-4 rounded-xl">
-                <div className="flex justify-between items-start mb-2">
-                    <Activity className="w-5 h-5 text-zinc-500" />
-                    <span className="text-[10px] font-bold text-white">NORMÁLNÍ</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Radiace</p>
-            </div>
-            <div className="bg-black/40 border border-white/5 p-4 rounded-xl">
-                <div className="flex justify-between items-start mb-2">
-                    <Database className="w-5 h-5 text-zinc-500" />
-                    <span className="text-[10px] font-bold text-yellow-500">STABILNÍ</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Jádro Stanice</p>
-            </div>
-        </div>
-
-        {/* Modules Grid */}
-        <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-            <LayoutGrid className="w-4 h-4" /> Dostupné Moduly
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
-            {menuItems.map((item) => (
-                <button 
-                    key={item.id}
-                    disabled={item.disabled}
-                    className="group relative overflow-hidden bg-zinc-900/50 border border-white/5 p-6 rounded-2xl text-left transition-all hover:border-cyan-500/50 hover:bg-zinc-900 active:scale-[0.98]"
-                >
-                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                        {item.icon}
-                    </div>
-                    <div className="flex items-center gap-4 mb-2 relative z-10">
-                        <div className={`p-3 rounded-lg ${item.disabled ? 'bg-zinc-800 text-zinc-600' : 'bg-cyan-500/10 text-cyan-400'}`}>
-                            {item.icon}
+        {/* REWARDS STATUS & CLAIM BUTTON */}
+        <div className="space-y-4 mb-8">
+            <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> Dostupný Servis
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {station.stationConfig?.refillO2 && (
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={`p-5 rounded-xl flex items-center gap-4 border transition-colors ${rewardsClaimed ? 'bg-green-900/20 border-green-500/50' : 'bg-black/40 border-white/10'}`}
+                    >
+                        <div className={`p-3 rounded-full ${rewardsClaimed ? 'bg-green-900/20 text-green-400' : 'bg-zinc-800 text-zinc-400'}`}>
+                            <Wind className="w-6 h-6" />
                         </div>
                         <div>
-                            <h4 className={`text-lg font-bold uppercase tracking-tight ${item.disabled ? 'text-zinc-600' : 'text-white'}`}>{item.label}</h4>
+                            <p className="text-[10px] text-zinc-400 uppercase font-bold tracking-widest">Podpora Života</p>
+                            <p className="text-lg font-black text-white uppercase">Doplnění O2</p>
                         </div>
-                    </div>
-                    <p className="text-xs text-zinc-500 font-mono relative z-10 pl-1">{item.desc}</p>
-                    
-                    {item.disabled && (
-                        <div className="absolute bottom-3 right-4 flex items-center gap-1.5 opacity-50">
-                            <AlertCircle className="w-3 h-3 text-yellow-500" />
-                            <span className="text-[8px] font-bold text-yellow-500 uppercase tracking-widest">Ve výstavbě</span>
+                        {rewardsClaimed && <CheckCircle className="w-6 h-6 text-green-500 ml-auto" />}
+                    </motion.div>
+                )}
+
+                {station.stationConfig?.fuelReward && (
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={`p-5 rounded-xl flex items-center gap-4 border transition-colors ${rewardsClaimed ? 'bg-green-900/20 border-green-500/50' : 'bg-black/40 border-white/10'}`}
+                    >
+                        <div className={`p-3 rounded-full ${rewardsClaimed ? 'bg-green-900/20 text-green-400' : 'bg-zinc-800 text-zinc-400'}`}>
+                            <Fuel className="w-6 h-6" />
                         </div>
-                    )}
-                </button>
-            ))}
+                        <div>
+                            <p className="text-[10px] text-zinc-400 uppercase font-bold tracking-widest">Tankování</p>
+                            <p className="text-lg font-black text-white uppercase">+{station.stationConfig.fuelReward} Paliva</p>
+                        </div>
+                        {rewardsClaimed && <CheckCircle className="w-6 h-6 text-green-500 ml-auto" />}
+                    </motion.div>
+                )}
+
+                {station.stationConfig?.repairAmount && (
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={`p-5 rounded-xl flex items-center gap-4 border transition-colors ${rewardsClaimed ? 'bg-green-900/20 border-green-500/50' : 'bg-black/40 border-white/10'}`}
+                    >
+                        <div className={`p-3 rounded-full ${rewardsClaimed ? 'bg-green-900/20 text-green-400' : 'bg-zinc-800 text-zinc-400'}`}>
+                            <Shield className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] text-zinc-400 uppercase font-bold tracking-widest">Opravy</p>
+                            <p className="text-lg font-black text-white uppercase">+{station.stationConfig.repairAmount} HP/Hull</p>
+                        </div>
+                        {rewardsClaimed && <CheckCircle className="w-6 h-6 text-green-500 ml-auto" />}
+                    </motion.div>
+                )}
+            </div>
+
+            <button 
+                onClick={handleClaim}
+                disabled={rewardsClaimed}
+                className={`w-full py-5 font-black uppercase text-sm tracking-[0.3em] rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg ${
+                    rewardsClaimed 
+                    ? 'bg-green-600 text-white cursor-default' 
+                    : 'bg-white text-black hover:bg-cyan-400 active:scale-95'
+                }`}
+            >
+                {rewardsClaimed ? (
+                    <>
+                        <Check className="w-5 h-5" /> SERVISNÍ ÚKONY DOKONČENY
+                    </>
+                ) : (
+                    <>
+                        <Activity className="w-5 h-5" /> PROVÉST KOMPLETNÍ SERVIS
+                    </>
+                )}
+            </button>
         </div>
+
+        {/* STATION SERVICES MENU */}
+        <div className="mb-8">
+            <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> Doplňkové Služby
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setShowFactory(true)} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
+                    <Hammer className="w-6 h-6 text-zinc-500 group-hover:text-orange-500 transition-colors" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 group-hover:text-white">Výroba (Factory)</span>
+                </button>
+                <button onClick={() => handleUnderConstruction('Loděnice')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
+                    <ArrowUpCircle className="w-6 h-6 text-zinc-500 group-hover:text-signal-cyan transition-colors" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Vylepšit Loď</span>
+                </button>
+                <button onClick={() => handleUnderConstruction('Lokální Tržiště')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
+                    <Search className="w-6 h-6 text-zinc-500 group-hover:text-signal-amber transition-colors" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Najít Obchodníka</span>
+                </button>
+                <button onClick={() => handleUnderConstruction('Kartografie')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
+                    <Globe className="w-6 h-6 text-zinc-500 group-hover:text-purple-500 transition-colors" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Registr Planet</span>
+                </button>
+            </div>
+        </div>
+
+        {/* SEPARATOR LINE */}
+        <div className="w-full h-0.5 bg-signal-amber mb-6 shadow-[0_0_10px_#ff9d00]" />
+
+        {/* SYSTEM LOGS */}
+        <div className="pt-2">
+            <h3 className="text-xs font-black text-signal-amber uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> Protokol Údržby
+            </h3>
+            <div className="font-mono text-[10px] text-zinc-500 space-y-1.5 p-4 bg-black/40 rounded-xl border border-white/5">
+                <p className="flex gap-2"><span className="text-zinc-700">08:00</span> <span>&gt; Navázáno spojení s centrálním serverem...</span></p>
+                <p className="flex gap-2"><span className="text-zinc-700">08:01</span> <span>&gt; Autorizace jednotky: ÚSPĚCH</span></p>
+                <p className="flex gap-2 text-green-500"><span className="text-green-900">08:02</span> <span>&gt; Zahájení automatických oprav...</span></p>
+                <p className="flex gap-2 text-green-500"><span className="text-green-900">08:05</span> <span>&gt; Doplnění zásob...</span></p>
+                <p className="flex gap-2"><span className="text-zinc-700">08:10</span> <span>&gt; Odpojení servisních ramen.</span></p>
+                <p className="flex gap-2 animate-pulse text-signal-cyan"><span className="text-cyan-900">08:11</span> <span>&gt; Připraveno k odletu.</span></p>
+            </div>
+        </div>
+
       </main>
 
       {/* FOOTER */}
       <footer className="relative z-10 p-6 bg-black/80 backdrop-blur-xl border-t border-white/10">
         <button 
-            onClick={handleUndock}
-            className="w-full py-4 bg-red-600/10 hover:bg-red-600/20 border border-red-600/30 text-red-500 font-black uppercase text-sm tracking-[0.3em] rounded-xl flex items-center justify-center gap-3 transition-all active:scale-95"
+            onClick={handleUndockClick}
+            className="w-full py-4 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-600/30 text-cyan-400 font-black uppercase text-sm tracking-[0.3em] rounded-xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-[0_0_20px_rgba(8,145,178,0.2)]"
         >
             <LogOut className="w-5 h-5" />
-            Odpojit se (Undock)
+            Opustit Stanici (Undock)
         </button>
       </footer>
+
+      {/* CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {showConfirmLeave && (
+            <div className="fixed inset-0 z-[250] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+                <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-zinc-900 border border-white/10 p-6 rounded-2xl w-full max-w-xs text-center shadow-2xl relative overflow-hidden"
+                >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-signal-cyan"></div>
+                    <div className="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-cyan-500 border border-cyan-500/30">
+                        <LogOut className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">Opustit Dok?</h3>
+                    <p className="text-xs text-zinc-400 mb-6 font-mono leading-relaxed">
+                        Opravdu chcete opustit stanici? Ujistěte se, že máte doplněno palivo a zásoby.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setShowConfirmLeave(false)} className="py-3 bg-zinc-800 text-zinc-400 font-bold uppercase text-[10px] rounded-lg hover:bg-zinc-700 transition-colors">
+                            Zůstat
+                        </button>
+                        <button onClick={confirmUndock} className="py-3 bg-cyan-600 text-white font-bold uppercase text-[10px] rounded-lg hover:bg-cyan-500 transition-colors shadow-lg shadow-cyan-500/20">
+                            Odletět
+                        </button>
+                    </div>
+                </motion.div>
+            </div>
+        )}
+      </AnimatePresence>
+
+      {/* CONSTRUCTION TOAST */}
+      <AnimatePresence>
+        {constructionMessage && (
+            <motion.div 
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 50, opacity: 0 }}
+                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-black/90 border border-orange-500/50 px-6 py-3 rounded-full shadow-[0_0_30px_rgba(249,115,22,0.3)] flex items-center gap-3"
+            >
+                <Construction className="w-5 h-5 text-orange-500 animate-pulse" />
+                <span className="text-xs font-bold text-orange-500 uppercase tracking-widest whitespace-nowrap">
+                    Modul {constructionMessage} ve výstavbě
+                </span>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FACTORY VIEW OVERLAY */}
+      <AnimatePresence>
+        {showFactory && (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="fixed inset-0 z-[250]"
+            >
+                <FactoryView 
+                    inventory={inventory} 
+                    masterCatalog={masterCatalog} 
+                    onClose={() => setShowFactory(false)}
+                    onCraft={onCraft} // Pass handler
+                />
+            </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 };

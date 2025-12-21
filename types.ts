@@ -84,9 +84,9 @@ export interface EnemyLoot {
 }
 
 export interface StationConfig {
-    o2RefillPrice: number;
-    armorRepairPrice: number;
-    energyRechargePrice: number;
+    fuelReward: number;     // Kolik paliva se doplní (např. 50)
+    repairAmount: number;   // Kolik HP/Hull se opraví (např. 30)
+    refillO2: boolean;      // Zda doplnit O2 na 100% (true)
     welcomeMessage: string;
 }
 
@@ -95,6 +95,15 @@ export interface ResourceConfig {
     resourceName: string;
     resourceAmount: number;
     customLabel?: string; // Vlastní nápis sekce (např. "Palivová Nádrž" místo "Surovina k Těžbě")
+}
+
+export interface CraftingRecipe {
+    enabled: boolean;
+    requiredResources: {
+        resourceName: string;
+        amount: number;
+    }[];
+    craftingTimeSeconds: number;
 }
 
 export interface TimeVariant {
@@ -143,6 +152,7 @@ export interface GameEvent {
   stationConfig?: StationConfig;
   
   resourceConfig?: ResourceConfig; // Konfigurace surovin
+  craftingRecipe?: CraftingRecipe; // Konfigurace výroby
 
   timeVariant?: TimeVariant; 
   classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 
