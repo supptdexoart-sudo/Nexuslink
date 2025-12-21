@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, Lock, ArrowRight, ShieldCheck, AlertTriangle, Check, WifiOff, Eye, EyeOff, ShieldAlert, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -100,8 +99,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
+        {...({ initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0 } } as any)}
         className="w-full max-w-sm z-10"
       >
         <div className="text-center mb-12">
@@ -195,7 +193,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <AnimatePresence>
       {showBioOffer && (
           <div className="fixed inset-0 z-[250] bg-[#0a0b0d]/98 backdrop-blur-xl flex items-center justify-center p-6 text-center">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="tactical-card max-w-sm border-signal-cyan">
+            <motion.div {...({ initial: { scale: 0.9, opacity: 0 }, animate: { scale: 1, opacity: 1 } } as any)} className="tactical-card max-w-sm border-signal-cyan">
                 <div className="corner-accent top-left !border-2"></div>
                 <div className="mb-6 flex justify-center">
                     <div className="p-6 bg-signal-cyan/10 rounded-full border border-signal-cyan/30 animate-pulse">
@@ -218,9 +216,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       {showConsentModal && (
         <div className="fixed inset-0 z-[200] bg-[#0a0b0d]/95 backdrop-blur-md flex items-center justify-center p-6">
             <motion.div 
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
+              {...({
+                initial: { scale: 0.96, opacity: 0 },
+                animate: { scale: 1, opacity: 1 },
+                exit: { scale: 0.96, opacity: 0 }
+              } as any)}
               className="tactical-card w-full max-w-sm border-signal-cyan/40 p-0 overflow-hidden bg-black/90 shadow-[0_0_60px_rgba(0,242,255,0.1)]"
             >
                 <div className="corner-accent top-left !border-2"></div>

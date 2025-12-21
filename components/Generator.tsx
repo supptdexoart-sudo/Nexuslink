@@ -1,12 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameEvent, GameEventType, PlayerClass, Stat } from '../types';
-import { Download, RotateCcw, Zap, Box, Coins, QrCode, Heart, Swords, Shield, Trash2, Sparkles, Wind, Upload, AlertTriangle, Moon } from 'lucide-react';
+import { GameEvent, GameEventType, PlayerClass } from '../types';
+import { Download, RotateCcw, QrCode, Trash2, Upload, AlertTriangle, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { playSound, vibrate } from '../services/soundService';
+import * as apiService from '../services/apiService';
+
+// Import modular panels
 import MerchantPanel from './generator/MerchantPanel';
 import DilemmaPanel from './generator/DilemmaPanel';
 import CombatPanel from './generator/CombatPanel';
-import { playSound, vibrate } from '../services/soundService';
+import ItemPanel from './generator/ItemPanel';
+import TrapPanel from './generator/TrapPanel';
+import EnemyLootPanel from './generator/EnemyLootPanel';
+import NightVariantPanel from './generator/NightVariantPanel';
+import SpaceStationPanel from './generator/SpaceStationPanel';
 
 interface GeneratorProps {
   onSaveCard: (event: GameEvent) => void;
@@ -30,7 +38,9 @@ const initialEventState: GameEvent = {
   price: 0,
   trapConfig: { difficulty: 10, damage: 20, disarmClass: PlayerClass.ROGUE, successMessage: "Past zneškodněna.", failMessage: "Past sklapla!" },
   enemyLoot: { goldReward: 20, xpReward: 10, dropItemChance: 0 },
-  timeVariant: { enabled: false, nightStats: [] }
+  timeVariant: { enabled: false, nightStats: [] },
+  stationConfig: { o2RefillPrice: 10, armorRepairPrice: 50, energyRechargePrice: 25, welcomeMessage: "Vítejte na palubě." },
+  resourceConfig: { isResourceContainer: false, resourceName: 'Surovina', resourceAmount: 1, customLabel: 'Surovina k Těžbě' }
 };
 
 const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialData, onClearData, onDelete }) => {
@@ -38,11 +48,21 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' | null }>({ message: '', type: null });
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (initialData) {
-      setNewEvent({ ...initialEventState, ...initialData });
+      // Robust merging: Ensure price and resourceConfig are preserved even if initialData is incomplete or structured differently
+      setNewEvent({ 
+          ...initialEventState, 
+          ...initialData,
+          price: (initialData.price !== undefined && initialData.price !== null) ? initialData.price : initialEventState.price,
+          resourceConfig: { 
+              ...initialEventState.resourceConfig, 
+              ...(initialData.resourceConfig || {}) 
+          } 
+      });
       setIsEditingMode(true);
     } else {
         setNewEvent(initialEventState);
@@ -52,22 +72,6 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
 
   const updateEvent = (updates: Partial<GameEvent>) => setNewEvent(prev => ({ ...prev, ...updates }));
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => updateEvent({ [e.target.name]: e.target.value });
-
-  const addQuickStat = (label: string, value: string = '+10') => {
-      const currentStats = [...(newEvent.stats || [])];
-      if (currentStats.some(s => s.label.toUpperCase() === label.toUpperCase())) return;
-      updateEvent({ stats: [...currentStats, { label, value }] });
-  };
-
-  const updateStat = (idx: number, field: keyof Stat, value: string) => {
-      const newStats = [...(newEvent.stats || [])];
-      newStats[idx] = { ...newStats[idx], [field]: value };
-      updateEvent({ stats: newStats });
-  };
-
-  const removeStat = (idx: number) => {
-      updateEvent({ stats: (newEvent.stats || []).filter((_, i) => i !== idx) });
-  };
 
   const handleDeleteClick = () => {
       if (!onDelete || !newEvent.id) return;
@@ -83,250 +87,19 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
       }
   };
 
-  const renderItemPanel = () => {
-      const quickOptions = [
-          { label: 'HP', icon: Heart, color: 'text-red-500' },
-          { label: 'DMG', icon: Swords, color: 'text-orange-500' },
-          { label: 'ARMOR', icon: Shield, color: 'text-zinc-200' },
-          { label: 'MANA', icon: Zap, color: 'text-cyan-400' },
-          { label: 'ZLATO', icon: Coins, color: 'text-yellow-500' },
-          { label: 'ŠTĚSTÍ', icon: Sparkles, color: 'text-purple-400' },
-          { label: 'KYSLÍK', icon: Wind, color: 'text-cyan-400' },
-      ];
-
-      return (
-          <div className="space-y-6 bg-arc-panel p-5 border border-arc-border relative">
-              <div className="flex items-center gap-2 text-arc-yellow border-b border-arc-border pb-3">
-                  <Box className="w-5 h-5"/>
-                  <h3 className="text-[10px] font-mono font-bold uppercase tracking-[0.2em]">Konfigurace_Assetu:</h3>
-              </div>
-
-              {/* Redesigned Checkbox - Clean Full Width */}
-              <div className="bg-black border border-arc-border/50 rounded-lg overflow-hidden transition-colors hover:border-arc-yellow">
-                  <label className="flex items-center gap-4 p-4 cursor-pointer group">
-                      <div className="relative flex items-center justify-center">
-                        <input 
-                            type="checkbox" 
-                            checked={newEvent.isConsumable} 
-                            onChange={(e) => updateEvent({ isConsumable: e.target.checked })} 
-                            className="w-6 h-6 rounded border-arc-border bg-zinc-900 text-arc-yellow focus:ring-arc-yellow accent-arc-yellow" 
-                        />
-                      </div>
-                      <div className="flex flex-col">
-                          <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${newEvent.isConsumable ? 'text-arc-yellow' : 'text-white'}`}>
-                              Spotřebovatelný Předmět
-                          </span>
-                          <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-tight">
-                              Asset bude zničen po jednom použití
-                          </span>
-                      </div>
-                  </label>
-              </div>
-
-              <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                      <label className="text-[8px] text-zinc-400 uppercase font-bold tracking-widest">Aktivní_stats na kartě:</label>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                      {quickOptions.map(opt => (
-                          <button 
-                            key={opt.label} 
-                            type="button" 
-                            onClick={() => addQuickStat(opt.label)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 border border-arc-border hover:border-arc-yellow transition-all active:scale-95 bg-black`}
-                          >
-                              <opt.icon className={`w-3 h-3 ${opt.color}`} />
-                              <span className={`text-[9px] font-bold uppercase tracking-tighter text-zinc-200`}>{opt.label}</span>
-                          </button>
-                      ))}
-                  </div>
-
-                  <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar pr-1">
-                      {newEvent.stats?.map((stat, idx) => {
-                          const labelUpper = stat.label.toUpperCase();
-                          const foundOption = quickOptions.find(o => 
-                            labelUpper.includes(o.label) || 
-                            (o.label === 'ARMOR' && labelUpper.includes('ARMOR')) ||
-                            (o.label === 'KYSLÍK' && labelUpper.includes('OXYGEN')) ||
-                            (o.label === 'HP' && (labelUpper.includes('HEALTH') || labelUpper.includes('ŽIVOT')))
-                          );
-
-                          return (
-                              <div key={idx} className="flex gap-2 items-center bg-black p-2 border border-arc-border animate-in slide-in-from-left-2 duration-200">
-                                  <div className={`p-2 border border-zinc-800 bg-arc-panel`}>
-                                      {foundOption ? <foundOption.icon className={`w-4 h-4 ${foundOption.color}`} /> : <Sparkles className="w-4 h-4 text-zinc-400" />}
-                                  </div>
-                                  <input 
-                                    value={stat.label} 
-                                    onChange={(e) => updateStat(idx, 'label', e.target.value)} 
-                                    className="w-24 bg-transparent border-none p-1 text-[10px] font-bold text-white placeholder-zinc-700 outline-none uppercase font-mono" 
-                                    placeholder="TAG" 
-                                  />
-                                  <input 
-                                    value={stat.value} 
-                                    onChange={(e) => updateStat(idx, 'value', e.target.value)} 
-                                    className="flex-1 bg-arc-panel border border-zinc-800 px-3 py-2 text-xs text-white font-mono placeholder-zinc-700 focus:border-arc-yellow outline-none" 
-                                    placeholder="HODNOTA" 
-                                  />
-                                  <button 
-                                    type="button" 
-                                    onClick={() => removeStat(idx)} 
-                                    className="p-2 text-zinc-400 hover:text-arc-red transition-colors"
-                                  >
-                                      <Trash2 className="w-4 h-4" />
-                                  </button>
-                              </div>
-                          );
-                      })}
-                  </div>
-              </div>
-          </div>
-      );
+  const handleBackup = async () => {
+      setIsBackingUp(true);
+      try {
+          await apiService.downloadBackup();
+          setFeedback({ message: 'Záloha stažena.', type: 'success' });
+          playSound('success');
+      } catch (e) {
+          setFeedback({ message: 'Chyba zálohování.', type: 'error' });
+          playSound('error');
+      } finally {
+          setIsBackingUp(false);
+      }
   };
-
-  const renderNightVariantPanel = () => (
-      <div className={`mt-6 p-5 border rounded-xl transition-all ${newEvent.timeVariant?.enabled ? 'bg-indigo-950/30 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)]' : 'bg-white/5 border-white/10 opacity-70'}`}>
-          <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-indigo-400">
-                  <Moon className="w-5 h-5" />
-                  <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest">Noční_Protokol_v2.0</h3>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      checked={newEvent.timeVariant?.enabled || false} 
-                      onChange={(e) => updateEvent({ timeVariant: { ...(newEvent.timeVariant || { enabled: false }), enabled: e.target.checked } })}
-                  />
-                  <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
-              </label>
-          </div>
-
-          {newEvent.timeVariant?.enabled && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                  <div className="grid grid-cols-1 gap-4">
-                      <div>
-                          <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Název karty v noci (Override):</label>
-                          <input 
-                              value={newEvent.timeVariant.nightTitle || ''} 
-                              onChange={(e) => updateEvent({ timeVariant: { ...newEvent.timeVariant!, nightTitle: e.target.value } })}
-                              placeholder="Ponechte prázdné pro původní"
-                              className="w-full bg-black border border-indigo-900/50 p-3 text-white text-sm outline-none focus:border-indigo-500"
-                          />
-                      </div>
-                      <div>
-                          <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Popis karty v noci (Override):</label>
-                          <textarea 
-                              value={newEvent.timeVariant.nightDescription || ''} 
-                              onChange={(e) => updateEvent({ timeVariant: { ...newEvent.timeVariant!, nightDescription: e.target.value } })}
-                              placeholder="Ponechte prázdné pro původní"
-                              className="w-full bg-black border border-indigo-900/50 p-3 text-zinc-300 text-xs font-mono outline-none focus:border-indigo-500"
-                              rows={2}
-                          />
-                      </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                          <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest">Noční_Statistiky (Nahrazují původní):</label>
-                          <button 
-                              type="button"
-                              onClick={() => {
-                                  const stats = [...(newEvent.timeVariant?.nightStats || [])];
-                                  stats.push({ label: 'NIGHT_MOD', value: '+5' });
-                                  updateEvent({ timeVariant: { ...newEvent.timeVariant!, nightStats: stats } });
-                              }}
-                              className="text-[8px] bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded border border-indigo-500/30 font-bold uppercase"
-                          >
-                              + PŘIDAT NOČNÍ STAT
-                          </button>
-                      </div>
-                      {newEvent.timeVariant.nightStats?.map((stat, idx) => (
-                          <div key={idx} className="flex gap-2 items-center bg-black/40 p-2 border border-indigo-900/30">
-                              <input 
-                                  value={stat.label} 
-                                  onChange={(e) => {
-                                      const stats = [...newEvent.timeVariant!.nightStats!];
-                                      stats[idx].label = e.target.value;
-                                      updateEvent({ timeVariant: { ...newEvent.timeVariant!, nightStats: stats } });
-                                  }}
-                                  className="w-20 bg-transparent border-none p-1 text-[9px] font-bold text-indigo-300 uppercase font-mono"
-                                  placeholder="TAG"
-                              />
-                              <input 
-                                  value={stat.value} 
-                                  onChange={(e) => {
-                                      const stats = [...newEvent.timeVariant!.nightStats!];
-                                      stats[idx].value = e.target.value;
-                                      updateEvent({ timeVariant: { ...newEvent.timeVariant!, nightStats: stats } });
-                                  }}
-                                  className="flex-1 bg-indigo-950/40 border border-indigo-900/50 px-2 py-1 text-xs text-white font-mono focus:border-indigo-400 outline-none"
-                                  placeholder="HODNOTA"
-                              />
-                              <button 
-                                  type="button"
-                                  onClick={() => {
-                                      const stats = newEvent.timeVariant!.nightStats!.filter((_, i) => i !== idx);
-                                      updateEvent({ timeVariant: { ...newEvent.timeVariant!, nightStats: stats } });
-                                  }}
-                                  className="text-red-500 p-1 hover:text-red-400"
-                              >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          )}
-      </div>
-  );
-
-  const renderTrapPanel = () => (
-      <div className="space-y-4 bg-arc-panel p-5 border border-arc-red/30 text-white">
-          <div className="flex items-center gap-2 mb-2 text-arc-red border-b border-arc-red/20 pb-2">
-              <Zap className="w-5 h-5"/>
-              <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest">Nástraha_konfigurace:</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-              <div>
-                  <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest">Kolik musí hodit hráč kostkou??</label>
-                  <input type="number" value={newEvent.trapConfig?.difficulty ?? 10} onChange={(e) => updateEvent({ trapConfig: { ...newEvent.trapConfig!, difficulty: parseInt(e.target.value) } })} className="w-full bg-black border border-arc-red/40 p-3 text-white font-mono text-sm" />
-              </div>
-              <div>
-                  <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest">DMG po prohře:</label>
-                  <input type="number" value={newEvent.trapConfig?.damage ?? 20} onChange={(e) => updateEvent({ trapConfig: { ...newEvent.trapConfig!, damage: parseInt(e.target.value) } })} className="w-full bg-black border border-arc-red/40 p-3 text-arc-red font-mono text-sm" />
-              </div>
-          </div>
-          <div>
-              <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest">Pro jakou postavu ??</label>
-              <select value={newEvent.trapConfig?.disarmClass ?? 'ANY'} onChange={(e) => updateEvent({ trapConfig: { ...newEvent.trapConfig!, disarmClass: e.target.value as any } })} className="w-full bg-black border border-arc-border p-3 text-white text-xs font-mono uppercase focus:ring-1 focus:ring-arc-yellow outline-none">
-                  <option value="ANY" className="bg-arc-panel text-white">UNSPECIFIED</option>
-                  {Object.values(PlayerClass).map(c => <option key={c} value={c} className="bg-arc-panel text-white">{c}</option>)}
-              </select>
-          </div>
-      </div>
-  );
-
-  const renderEnemyLootPanel = () => (
-      <div className="mt-4 bg-arc-panel p-5 border border-arc-yellow/20 text-white">
-          <h4 className="text-[10px] font-bold text-arc-yellow uppercase tracking-widest mb-4 flex items-center gap-2"><Coins className="w-4 h-4"/> Odměna_po_boji:</h4>
-          <div className="grid grid-cols-3 gap-3">
-              <div>
-                  <label className="text-[8px] text-zinc-300 uppercase">Zlato</label>
-                  <input type="number" value={newEvent.enemyLoot?.goldReward ?? 0} onChange={(e) => updateEvent({ enemyLoot: { ...newEvent.enemyLoot!, goldReward: parseInt(e.target.value) } })} className="w-full bg-black border border-arc-border p-2 text-white text-xs text-center font-mono" />
-              </div>
-              <div>
-                  <label className="text-[8px] text-zinc-300 uppercase">Exp_Data</label>
-                  <input type="number" value={newEvent.enemyLoot?.xpReward ?? 0} onChange={(e) => updateEvent({ enemyLoot: { ...newEvent.enemyLoot!, xpReward: parseInt(e.target.value) } })} className="w-full bg-black border border-arc-border p-2 text-white text-xs text-center font-mono" />
-              </div>
-              <div>
-                  <label className="text-[8px] text-zinc-300 uppercase">Drop_%</label>
-                  <input type="number" value={newEvent.enemyLoot?.dropItemChance ?? 0} onChange={(e) => updateEvent({ enemyLoot: { ...newEvent.enemyLoot!, dropItemChance: parseInt(e.target.value) } })} className="w-full bg-black border border-arc-border p-2 text-white text-xs text-center font-mono" />
-              </div>
-          </div>
-      </div>
-  );
 
   const getQrUrl = (id: string, type: GameEventType) => {
       if (!id) return '';
@@ -336,7 +109,8 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
           [GameEventType.ENCOUNTER]: 'ff3b30', 
           [GameEventType.DILEMA]: '9333ea', 
           [GameEventType.MERCHANT]: 'f5c518', 
-          [GameEventType.ITEM]: '007aff' 
+          [GameEventType.ITEM]: '007aff',
+          [GameEventType.SPACE_STATION]: '22d3ee'
       };
       const color = colorMap[type] || 'ffffff';
       return `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&color=${color}&bgcolor=0a0a0c&margin=20&data=${encodeURIComponent(id)}`;
@@ -389,6 +163,14 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                 {isEditingMode ? 'Editovat' : 'FABRIKACE'} <span className="text-arc-yellow">Assetu</span>
             </h1>
             <div className="flex items-center gap-2">
+                <button 
+                    type="button" 
+                    onClick={handleBackup} 
+                    className="p-2 bg-black border border-blue-500 text-blue-500 hover:bg-blue-500/10 active:scale-95 transition-all"
+                    title="Stáhnout Zálohu DB"
+                >
+                    {isBackingUp ? <RotateCcw className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>}
+                </button>
                 {isEditingMode && onDelete && (
                     <button type="button" onClick={handleDeleteClick} className="p-2 bg-black border border-red-900/50 text-red-500 hover:bg-red-900/20 active:scale-95 transition-all">
                         <Trash2 className="w-5 h-5"/>
@@ -432,21 +214,43 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
             </div>
 
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {newEvent.type === GameEventType.ITEM && renderItemPanel()}
-                {newEvent.type === GameEventType.TRAP && renderTrapPanel()}
+                {/* ITEM CONFIGURATION */}
+                {newEvent.type === GameEventType.ITEM && (
+                    <ItemPanel event={newEvent} onUpdate={updateEvent} />
+                )}
+
+                {/* TRAP CONFIGURATION */}
+                {newEvent.type === GameEventType.TRAP && (
+                    <TrapPanel event={newEvent} onUpdate={updateEvent} />
+                )}
                 
+                {/* COMBAT CONFIGURATION (ENCOUNTER / BOSS) */}
                 {(newEvent.type === GameEventType.ENCOUNTER || newEvent.type === GameEventType.BOSS) && (
                     <>
                         <CombatPanel event={newEvent} onUpdate={updateEvent} />
-                        {newEvent.type === GameEventType.ENCOUNTER && renderEnemyLootPanel()}
+                        {newEvent.type === GameEventType.ENCOUNTER && (
+                            <EnemyLootPanel event={newEvent} onUpdate={updateEvent} />
+                        )}
                     </>
                 )}
                 
-                {newEvent.type === GameEventType.MERCHANT && <MerchantPanel event={newEvent} onUpdate={updateEvent} />}
-                {newEvent.type === GameEventType.DILEMA && <DilemmaPanel event={newEvent} onUpdate={updateEvent} />}
+                {/* MERCHANT CONFIGURATION */}
+                {newEvent.type === GameEventType.MERCHANT && (
+                    <MerchantPanel event={newEvent} onUpdate={updateEvent} />
+                )}
 
-                {/* NOČNÍ VARIANTA SECTOR */}
-                {renderNightVariantPanel()}
+                {/* SPACE STATION CONFIGURATION */}
+                {newEvent.type === GameEventType.SPACE_STATION && (
+                    <SpaceStationPanel event={newEvent} onUpdate={updateEvent} />
+                )}
+
+                {/* DILEMMA CONFIGURATION */}
+                {newEvent.type === GameEventType.DILEMA && (
+                    <DilemmaPanel event={newEvent} onUpdate={updateEvent} />
+                )}
+
+                {/* NIGHT VARIANT CONFIGURATION (Available for all types) */}
+                <NightVariantPanel event={newEvent} onUpdate={updateEvent} />
             </div>
 
             <div className="flex items-center gap-6 bg-black p-6 border border-arc-border relative bracket-bl bracket-br">
@@ -492,14 +296,11 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
         <AnimatePresence>
             {showDeleteModal && (
                 <motion.div 
-                    initial={{ opacity: 0 }} 
-                    animate={{ opacity: 1 }} 
-                    exit={{ opacity: 0 }}
+                    {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)}
                     className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-sm flex items-center justify-center p-6"
                 >
                     <motion.div 
-                        initial={{ scale: 0.9, y: 20 }}
-                        animate={{ scale: 1, y: 0 }}
+                        {...({ initial: { scale: 0.9, y: 20 }, animate: { scale: 1, y: 0 } } as any)}
                         className="bg-black border-2 border-red-600 w-full max-w-xs shadow-[0_0_60px_rgba(220,38,38,0.4)] relative overflow-hidden"
                     >
                         <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse"></div>

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Power, ShieldAlert, Cpu } from 'lucide-react';
@@ -53,15 +52,15 @@ const StartupBoot: React.FC<StartupBootProps> = ({ onComplete }) => {
         {phase === 'init' && (
           <motion.div 
             key="init"
-            initial={{ opacity: 0, scale: 0.9 }} 
-            animate={{ opacity: 1, scale: 1 }} 
-            exit={{ opacity: 0, y: 20 }}
+            {...({ initial: { opacity: 0, scale: 0.9 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, y: 20 } } as any)}
             className="flex flex-col items-center gap-10 text-center"
           >
             <div className="relative">
               <motion.div 
-                animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
-                transition={{ repeat: Infinity, duration: 2.5 }}
+                {...({
+                  animate: { scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] },
+                  transition: { repeat: Infinity, duration: 2.5 }
+                } as any)}
                 className="absolute inset-0 bg-[#00f2ff]/20 blur-3xl rounded-full"
               />
               <div className="w-24 h-24 border-2 border-[#ff9d00] rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,157,0,0.25)] relative z-10 bg-[#0a0b0d]">
@@ -84,8 +83,7 @@ const StartupBoot: React.FC<StartupBootProps> = ({ onComplete }) => {
         {phase === 'boot' && (
           <motion.div 
             key="boot"
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }}
+            {...({ initial: { opacity: 0 }, animate: { opacity: 1 } } as any)}
             className="w-full max-w-[280px] flex flex-col items-center gap-8"
           >
             <div className="flex flex-col items-center gap-3 text-center">
@@ -100,8 +98,7 @@ const StartupBoot: React.FC<StartupBootProps> = ({ onComplete }) => {
               </div>
               <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
                 <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
+                  {...({ initial: { width: 0 }, animate: { width: `${progress}%` } } as any)}
                   className="h-full bg-gradient-to-r from-[#ff9d00] to-[#fff] shadow-[0_0_10px_rgba(255,157,0,0.8)]"
                 />
               </div>
@@ -117,8 +114,7 @@ const StartupBoot: React.FC<StartupBootProps> = ({ onComplete }) => {
         {phase === 'complete' && (
           <motion.div 
             key="complete"
-            initial={{ scale: 1.1, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            {...({ initial: { scale: 1.1, opacity: 0 }, animate: { scale: 1, opacity: 1 } } as any)}
             className="flex flex-col items-center gap-6"
           >
             <div className="p-8 tactical-card border-[#00f2ff] shadow-[0_0_50px_rgba(0,242,255,0.15)] bg-black/80">

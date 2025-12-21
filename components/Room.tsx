@@ -29,6 +29,7 @@ interface RoomProps {
   playerHp?: number;
   scanLog?: string[];
   onLeaveRoom: () => void;
+  onExitToMenu: () => void;
   onSendMessage: (text: string) => void;
   onStartGame?: () => void;
   onInspectItem?: (itemId: string) => void;
@@ -37,7 +38,7 @@ interface RoomProps {
 }
 
 const Room: React.FC<RoomProps> = ({ 
-    roomState, inventory, playerHp, scanLog = [], onLeaveRoom, onSendMessage, onStartGame, onInspectItem, onSwapItems, userEmail
+    roomState, inventory, playerHp, scanLog = [], onLeaveRoom, onExitToMenu, onSendMessage, onStartGame, onInspectItem, onSwapItems, userEmail
 }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'party' | 'trade'>('party');
   const [newMessage, setNewMessage] = useState('');
@@ -206,8 +207,7 @@ const Room: React.FC<RoomProps> = ({
                                     </div>
                                     <div className="h-2 bg-zinc-800 rounded-full overflow-hidden border border-white/5">
                                         <motion.div 
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${playerHp ?? 100}%` }}
+                                            {...({ initial: { width: 0 }, animate: { width: `${playerHp ?? 100}%` } } as any)}
                                             className={`h-full transition-all duration-500 ${ (playerHp ?? 100) < 30 ? 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-signal-cyan shadow-[0_0_10px_rgba(0,242,255,0.3)]'}`}
                                         />
                                     </div>
@@ -246,9 +246,7 @@ const Room: React.FC<RoomProps> = ({
                                     ) : (
                                         scanLog.map((log, i) => (
                                             <motion.div 
-                                                initial={{ opacity: 0, x: -5 }} 
-                                                animate={{ opacity: 1, x: 0 }} 
-                                                key={i} 
+                                                {...({ initial: { opacity: 0, x: -5 }, animate: { opacity: 1, x: 0 }, key: i } as any)}
                                                 className="flex gap-2 text-zinc-400 border-l border-zinc-700 pl-2 py-0.5"
                                             >
                                                 <span className="text-signal-cyan/50">[{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
@@ -331,8 +329,8 @@ const Room: React.FC<RoomProps> = ({
 
         <AnimatePresence>
             {showLeaveConfirmation && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-black/98 backdrop-blur-2xl flex flex-col items-center justify-center p-8 text-center">
-                    <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm space-y-10">
+                <motion.div {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="fixed inset-0 z-[300] bg-black/98 backdrop-blur-2xl flex flex-col items-center justify-center p-8 text-center">
+                    <motion.div {...({ initial: { scale: 0.9, y: 20 }, animate: { scale: 1, y: 0 } } as any)} className="w-full max-w-sm space-y-10">
                         <div className="space-y-4">
                             <div className="w-20 h-20 bg-red-950/20 border border-red-500/50 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(239,68,68,0.2)]">
                                 <Trash2 className="w-10 h-10 text-red-500" />
@@ -342,7 +340,7 @@ const Room: React.FC<RoomProps> = ({
                         </div>
 
                         <div className="space-y-4">
-                            <button onClick={onLeaveRoom} className="w-full group p-5 bg-zinc-900 border border-zinc-700 hover:border-signal-cyan rounded-2xl flex items-center gap-5 transition-all active:scale-95 text-left">
+                            <button onClick={onExitToMenu} className="w-full group p-5 bg-zinc-900 border border-zinc-700 hover:border-signal-cyan rounded-2xl flex items-center gap-5 transition-all active:scale-95 text-left">
                                 <div className="p-3 bg-signal-cyan/10 rounded-xl text-signal-cyan group-hover:scale-110 transition-transform"><Plus className="w-6 h-6" /></div>
                                 <div>
                                     <h4 className="font-black text-white uppercase text-sm tracking-widest">Založit Nový Sektor</h4>
@@ -350,7 +348,7 @@ const Room: React.FC<RoomProps> = ({
                                 </div>
                             </button>
 
-                            <button onClick={onLeaveRoom} className="w-full group p-5 bg-zinc-900 border border-zinc-700 hover:border-signal-amber rounded-2xl flex items-center gap-5 transition-all active:scale-95 text-left">
+                            <button onClick={onExitToMenu} className="w-full group p-5 bg-zinc-900 border border-zinc-700 hover:border-signal-amber rounded-2xl flex items-center gap-5 transition-all active:scale-95 text-left">
                                 <div className="p-3 bg-signal-amber/10 rounded-xl text-signal-amber group-hover:scale-110 transition-transform"><Hash className="w-6 h-6" /></div>
                                 <div>
                                     <h4 className="font-black text-white uppercase text-sm tracking-widest">Vstoupit do jiného Sektoru</h4>
@@ -358,7 +356,7 @@ const Room: React.FC<RoomProps> = ({
                                 </div>
                             </button>
 
-                            <button onClick={onLeaveRoom} className="w-full group p-5 bg-zinc-900 border border-zinc-700 hover:border-white rounded-2xl flex items-center gap-5 transition-all active:scale-95 text-left">
+                            <button onClick={onExitToMenu} className="w-full group p-5 bg-zinc-900 border border-zinc-700 hover:border-white rounded-2xl flex items-center gap-5 transition-all active:scale-95 text-left">
                                 <div className="p-3 bg-white/10 rounded-xl text-white group-hover:scale-110 transition-transform"><Globe className="w-6 h-6" /></div>
                                 <div>
                                     <h4 className="font-black text-white uppercase text-sm tracking-widest">Samostatná Mise (Online)</h4>
@@ -377,7 +375,7 @@ const Room: React.FC<RoomProps> = ({
 
         <AnimatePresence>
             {(isPickingForTrade || tradeResponseContext) && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col p-6">
+                <motion.div {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col p-6">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-xl font-black uppercase tracking-widest text-white">{tradeResponseContext ? 'Vyberte_Protihodnotu' : 'Vyberte_Asset_z_Batohu'}</h2>
                         <button onClick={() => { setIsPickingForTrade(false); setTradeResponseContext(null); }} className="p-2 bg-white/5 rounded-full text-zinc-400"><X className="w-6 h-6" /></button>

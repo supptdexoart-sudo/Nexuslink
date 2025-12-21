@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Keyboard, Camera, Loader2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -127,7 +126,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanCode, isAIThinking, isPaused })
 
            <AnimatePresence>
              {isAIThinking && (
-               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-30 bg-signal-cyan/20 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+               <motion.div {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0 z-30 bg-signal-cyan/20 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
                   <Loader2 className="w-12 h-12 text-white animate-spin" />
                   <span className="text-xs font-black text-white uppercase tracking-[0.3em]">Analyzuji_Data...</span>
                </motion.div>
@@ -142,7 +141,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanCode, isAIThinking, isPaused })
 
       <AnimatePresence>
         {showManualInput && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-8">
+          <motion.div {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-8">
             <div className="w-full max-w-xs space-y-6">
                <h3 className="text-xl font-black text-white uppercase text-center tracking-widest">Zadejte_ID</h3>
                <input 

@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, Suspense, lazy, ReactNode, Component } from 'react';
+import React, { useState, useEffect, Suspense, lazy, ReactNode, ErrorInfo, Component } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameLogic, Tab } from './hooks/useGameLogic';
 import Scanner from './components/Scanner';
@@ -8,10 +7,12 @@ import StartupBoot from './components/StartupBoot';
 import GameSetup from './components/GameSetup';
 import Toast from './components/Toast';
 import EventCard from './components/EventCard';
+import DockingAnimation from './components/DockingAnimation';
+import SpaceStationView from './components/SpaceStationView'; // IMPORT
 import { 
   Scan, Box, Hammer, Users, Settings as SettingsIcon, 
   Sun, Moon, Heart, Zap, Coins, Shield, Star, 
-  Wind, Loader2, AlertTriangle
+  Wind, Loader2, AlertTriangle, Rocket, Fuel
 } from 'lucide-react';
 import { playSound, vibrate } from './services/soundService';
 
@@ -20,12 +21,14 @@ const inventoryImport = () => import('./components/InventoryView');
 const generatorImport = () => import('./components/Generator');
 const roomImport = () => import('./components/Room');
 const settingsImport = () => import('./components/SettingsView');
+const spaceshipImport = () => import('./components/SpaceshipView');
 
 // --- LAZY LOADED MODULES ---
 const InventoryView = lazy(inventoryImport);
 const Generator = lazy(generatorImport);
 const Room = lazy(roomImport);
 const SettingsView = lazy(settingsImport);
+const SpaceshipView = lazy(spaceshipImport);
 
 // --- ERROR BOUNDARY FOR LAZY MODULES ---
 interface ModuleErrorBoundaryProps {
@@ -36,19 +39,21 @@ interface ModuleErrorBoundaryState {
   hasError: boolean;
 }
 
-// Fixed: Using Component from 'react' explicitly to resolve type inference issues with this.state and this.props
 class ModuleErrorBoundary extends Component<ModuleErrorBoundaryProps, ModuleErrorBoundaryState> {
   constructor(props: ModuleErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(): ModuleErrorBoundaryState { 
+  static getDerivedStateFromError(error: Error): ModuleErrorBoundaryState { 
     return { hasError: true }; 
   }
   
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ModuleErrorBoundary caught an error", error, errorInfo);
+  }
+
   render() {
-    // Fixed: Accessed this.state safely with correctly typed inheritance
     if (this.state.hasError) {
       return (
         <div className="h-full w-full flex flex-col items-center justify-center bg-black p-10 text-center">
@@ -68,7 +73,6 @@ class ModuleErrorBoundary extends Component<ModuleErrorBoundaryProps, ModuleErro
         </div>
       );
     }
-    // Fixed: Accessed this.props safely with correctly typed inheritance
     return this.props.children;
   }
 }
@@ -78,8 +82,10 @@ const TabLoader = () => (
     <div className="relative">
       <Loader2 className="w-12 h-12 text-signal-cyan animate-spin opacity-50" />
       <motion.div 
-        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }}
-        transition={{ duration: 1.5, repeat: Infinity }}
+        {...({
+          animate: { scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] },
+          transition: { duration: 1.5, repeat: Infinity }
+        } as any)}
         className="absolute inset-0 flex items-center justify-center"
       >
         <div className="w-2 h-2 bg-signal-cyan rounded-full shadow-[0_0_10px_#00f2ff]" />
@@ -102,6 +108,7 @@ const App: React.FC = () => {
     if (bootComplete && logic.userEmail && isOnline) {
       inventoryImport().catch(() => {});
       roomImport().catch(() => {});
+      spaceshipImport().catch(() => {});
       if (logic.isAdmin) generatorImport().catch(() => {});
       settingsImport().catch(() => {});
     }
@@ -158,6 +165,23 @@ const App: React.FC = () => {
   return (
     <div className={`h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white relative`}>
       
+      {/* SCREEN FLASH OVERLAY */}
+      <AnimatePresence>
+        {logic.screenFlash && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-[999] pointer-events-none mix-blend-overlay ${
+              logic.screenFlash === 'red' ? 'bg-red-600/40' : 
+              logic.screenFlash === 'green' ? 'bg-green-500/30' : 
+              logic.screenFlash === 'blue' ? 'bg-blue-500/30' : 
+              'bg-orange-500/50' // Amber for fuel
+            }`}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="h-28 bg-zinc-950/95 border-b border-white/10 flex flex-col z-[100] shadow-[0_5px_20px_rgba(0,0,0,0.8)]">
         {/* Top Status Info */}
         <div className="flex items-center justify-between px-4 py-1 border-b border-white/5 bg-white/[0.01]">
@@ -171,21 +195,23 @@ const App: React.FC = () => {
                     <span className="text-[8px] font-mono text-zinc-400 uppercase tracking-widest">{logic.isNight ? 'Night_Cycle' : 'Day_Cycle'}</span>
                 </button>
                 <div className="w-8 h-1.5 bg-white/5 relative rounded-full overflow-hidden border border-white/10">
-                    <div className="h-full bg-signal-amber shadow-[0_0_5px_#ff9d00]" style={{ width: `${batteryLevel * 100}%` }} />
+                    <div className="h-full bg-signal-amber shadow-[0_0_50px_#ff9d00]" style={{ width: `${batteryLevel * 100}%` }} />
                 </div>
             </div>
         </div>
 
         {/* Improved Stats Grid - 2 Rows for better visibility */}
         <div className="flex-1 flex flex-col gap-1 p-1 bg-black/40">
+            {/* Primary Survival Stats */}
             <div className="flex-1 grid grid-cols-3 gap-1">
                 <StatSlot icon={<Heart className="w-4 h-4" />} value={logic.playerHp} color="#ef4444" label="HP" />
                 <StatSlot icon={<Zap className="w-4 h-4" />} value={logic.playerMana} color="#00f2ff" label="MANA" />
-                <StatSlot icon={<Coins className="w-4 h-4" />} value={logic.playerGold} color="#fbbf24" label="GOLD" />
+                <StatSlot icon={<Fuel className="w-4 h-4" />} value={logic.playerFuel} color="#f97316" label="PALIVO" />
             </div>
+            {/* Secondary/Economy Stats */}
             <div className="flex-1 grid grid-cols-3 gap-1">
+                <StatSlot icon={<Coins className="w-3 h-3" />} value={logic.playerGold} color="#fbbf24" label="GOLD" small />
                 <StatSlot icon={<Shield className="w-3 h-3" />} value={logic.playerArmor} color="#a1a1aa" label="ARMOR" small />
-                <StatSlot icon={<Star className="w-3 h-3" />} value={logic.playerLuck} color="#c084fc" label="LUCK" small />
                 <StatSlot icon={<Wind className="w-3 h-3" />} value={logic.playerOxygen} color="#22d3ee" label="O2" small />
             </div>
         </div>
@@ -196,13 +222,13 @@ const App: React.FC = () => {
           <Suspense fallback={<TabLoader />}>
             <AnimatePresence mode="wait">
               {logic.activeTab === Tab.SCANNER && (
-                <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                <motion.div key="scanner" {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0">
                   <Scanner onScanCode={logic.handleScanCode} isAIThinking={logic.isAIThinking} isPaused={logic.isScannerPaused} />
                 </motion.div>
               )}
 
               {logic.activeTab === Tab.INVENTORY && (
-                <motion.div key="inventory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                <motion.div key="inventory" {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0">
                   <InventoryView 
                     inventory={logic.inventory} loadingInventory={false} isRefreshing={logic.isRefreshing} 
                     isAdmin={logic.isAdmin} isNight={logic.isNight} adminNightOverride={logic.adminNightOverride}
@@ -213,7 +239,7 @@ const App: React.FC = () => {
               )}
 
               {logic.activeTab === Tab.GENERATOR && (
-                <motion.div key="generator" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                <motion.div key="generator" {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0">
                   <Generator 
                     onSaveCard={logic.handleSaveEvent} userEmail={logic.userEmail || ''} initialData={logic.editingEvent}
                     onClearData={() => logic.setEditingEvent(null)} onDelete={logic.handleDeleteEvent}
@@ -222,17 +248,17 @@ const App: React.FC = () => {
               )}
 
               {logic.activeTab === Tab.ROOM && (
-                <motion.div key="room" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                <motion.div key="room" {...({ initial: { opacity: 0 }, animate: { opacity: 1, exit: { opacity: 0 } } } as any)} className="absolute inset-0">
                   <Room 
                     roomState={logic.roomState} inventory={logic.inventory} playerHp={logic.playerHp} scanLog={logic.scanLog}
-                    onLeaveRoom={logic.handleLeaveRoom} onSendMessage={logic.handleSendMessage} onStartGame={logic.handleStartGame}
+                    onLeaveRoom={logic.handleLeaveRoom} onExitToMenu={logic.handleExitToMenu} onSendMessage={logic.handleSendMessage} onStartGame={logic.handleStartGame}
                     onInspectItem={logic.handleInspectItem} onSwapItems={logic.handleSwapItems} userEmail={logic.userEmail || undefined}
                   />
                 </motion.div>
               )}
 
               {logic.activeTab === Tab.SETTINGS && (
-                <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                <motion.div key="settings" {...({ initial: { opacity: 0 }, animate: { opacity: 1, exit: { opacity: 0 } } } as any)} className="absolute inset-0">
                   <SettingsView 
                     onBack={() => logic.setActiveTab(Tab.SCANNER)} onLogout={logic.handleLogout}
                     soundEnabled={logic.soundEnabled} vibrationEnabled={logic.vibrationEnabled}
@@ -240,26 +266,52 @@ const App: React.FC = () => {
                   />
                 </motion.div>
               )}
+
+              {logic.activeTab === Tab.SPACESHIP && (
+                <motion.div key="spaceship" {...({ initial: { opacity: 0 }, animate: { opacity: 1, exit: { opacity: 0 } } } as any)} className="absolute inset-0">
+                  <SpaceshipView playerFuel={logic.playerFuel} />
+                </motion.div>
+              )}
             </AnimatePresence>
           </Suspense>
         </ModuleErrorBoundary>
       </div>
 
-      <div className="h-20 bg-zinc-950 border-t-2 border-signal-cyan/40 flex items-center justify-around px-6 pb-2 relative z-50 shadow-[0_-12px_35px_rgba(0,242,255,0.25)]">
+      <div className="h-20 bg-zinc-950 border-t-2 border-signal-cyan/40 flex items-center justify-around px-2 pb-2 relative z-50 shadow-[0_-12px_35px_rgba(0,242,255,0.25)]">
         <NavButton active={logic.activeTab === Tab.SCANNER} onClick={() => logic.setActiveTab(Tab.SCANNER)} icon={<Scan />} label="Sken" />
         <NavButton active={logic.activeTab === Tab.INVENTORY} onClick={() => logic.setActiveTab(Tab.INVENTORY)} icon={<Box />} label="Batoh" />
-        {logic.isAdmin && <NavButton active={logic.activeTab === Tab.GENERATOR} onClick={() => logic.setActiveTab(Tab.GENERATOR)} icon={<Hammer />} label="Fab" />}
+        <NavButton active={logic.activeTab === Tab.SPACESHIP} onClick={() => logic.setActiveTab(Tab.SPACESHIP)} icon={<Rocket />} label="Loď" />
+        {logic.isAdmin && <NavButton active={logic.activeTab === Tab.GENERATOR} onClick={() => logic.setActiveTab(Tab.GENERATOR)} icon={<Hammer />} label="Fab" /> }
         <NavButton active={logic.activeTab === Tab.ROOM} onClick={() => logic.setActiveTab(Tab.ROOM)} icon={<Users />} label="Tým" />
         <NavButton active={logic.activeTab === Tab.SETTINGS} onClick={() => logic.setActiveTab(Tab.SETTINGS)} icon={<SettingsIcon />} label="Sys" />
       </div>
 
+      {/* DOCKING ANIMATION LAYER */}
       <AnimatePresence>
-        {logic.currentEvent && (
+        {logic.isDocking && (
+          <DockingAnimation onComplete={logic.handleDockingComplete} />
+        )}
+      </AnimatePresence>
+
+      {/* SPACE STATION INTERFACE LAYER */}
+      <AnimatePresence>
+        {logic.activeStation && (
+           <SpaceStationView 
+              station={logic.activeStation} 
+              onLeave={logic.handleLeaveStation}
+           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {/* Only show event card if we are NOT docking AND NOT in station view */}
+        {logic.currentEvent && !logic.isDocking && !logic.activeStation && (
           <EventCard 
             event={logic.currentEvent} 
             onClose={logic.closeEvent} 
             onSave={() => logic.handleSaveEvent(logic.currentEvent!)}
             onUse={() => logic.handleUseEvent(logic.currentEvent!)} 
+            onDiscard={() => logic.handleDeleteEvent(logic.currentEvent!.id)}
             onResolveDilemma={logic.handleResolveDilemma}
             isSaved={logic.inventory.some(i => i.id === logic.currentEvent?.id)}
           />

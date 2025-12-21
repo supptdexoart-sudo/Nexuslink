@@ -5,7 +5,8 @@ export enum GameEventType {
   TRAP = 'NÁSTRAHA',
   MERCHANT = 'OBCHODNÍK',
   DILEMA = 'DILEMA',
-  BOSS = 'BOSS'
+  BOSS = 'BOSS',
+  SPACE_STATION = 'VESMÍRNÁ_STANICE'
 }
 
 export enum PlayerClass {
@@ -28,12 +29,28 @@ export interface MerchantItemEntry {
   sellPrice?: number;
 }
 
+export interface DilemmaReward {
+    type: 'HP' | 'GOLD' | 'MANA' | 'XP';
+    value: number;
+}
+
 export interface DilemmaOption {
   label: string; 
+  
+  // Success Scenarion
+  successChance: number; // 0-100
   consequenceText: string; 
+  rewards?: DilemmaReward[]; // List of effects on success
+
+  // Legacy / Simple effect support
+  effectType?: string;
+  effectValue?: number;
+
+  // Fail Scenario
+  failMessage?: string;
+  failDamage?: number; // DMG on fail
+
   physicalInstruction?: string; 
-  effectType: 'none' | 'hp' | 'gold';
-  effectValue: number; 
 }
 
 export interface BossPhase {
@@ -64,6 +81,20 @@ export interface EnemyLoot {
     xpReward: number;
     dropItemChance: number; 
     dropItemId?: string; 
+}
+
+export interface StationConfig {
+    o2RefillPrice: number;
+    armorRepairPrice: number;
+    energyRechargePrice: number;
+    welcomeMessage: string;
+}
+
+export interface ResourceConfig {
+    isResourceContainer: boolean;
+    resourceName: string;
+    resourceAmount: number;
+    customLabel?: string; // Vlastní nápis sekce (např. "Palivová Nádrž" místo "Surovina k Těžbě")
 }
 
 export interface TimeVariant {
@@ -108,6 +139,10 @@ export interface GameEvent {
   
   trapConfig?: TrapConfig; 
   enemyLoot?: EnemyLoot; 
+
+  stationConfig?: StationConfig;
+  
+  resourceConfig?: ResourceConfig; // Konfigurace surovin
 
   timeVariant?: TimeVariant; 
   classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 

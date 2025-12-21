@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
 import { ShoppingBag, Coins, X, Loader2, Package, Ban, ArrowRightLeft, DollarSign, Brain, Sword, Cross, Wand2, Footprints } from 'lucide-react';
@@ -175,10 +174,12 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
 
     return (
         <motion.div 
-            initial={{ opacity: 0, y: '100%' }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            {...({
+                initial: { opacity: 0, y: '100%' },
+                animate: { opacity: 1, y: 0 },
+                exit: { opacity: 0, y: '100%' },
+                transition: { type: 'spring', damping: 25, stiffness: 200 }
+            } as any)}
             className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col"
         >
             {/* Header */}
@@ -188,9 +189,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
                 <AnimatePresence>
                     {rogueMessage && (
                         <motion.div 
-                            initial={{ y: -50, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: -50, opacity: 0 }}
+                            {...({ initial: { y: -50, opacity: 0 }, animate: { y: 0, opacity: 1 }, exit: { y: -50, opacity: 0 } } as any)}
                             className="absolute top-2 left-2 right-2 bg-green-900/90 border border-green-500 text-green-100 p-3 rounded-xl z-50 flex items-center gap-2 shadow-xl"
                         >
                             <Footprints className="w-5 h-5 text-green-400" />
@@ -371,15 +370,11 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({ merchant, userGold, adm
             <AnimatePresence>
                 {appraisingItem && (
                     <motion.div 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }}
+                        {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)}
                         className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6"
                     >
                         <motion.div 
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.9, y: 20 }}
+                            {...({ initial: { scale: 0.9, y: 20 }, animate: { scale: 1, y: 0 }, exit: { scale: 0.9, y: 20 } } as any)}
                             className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm text-center relative overflow-hidden"
                         >
                             <button onClick={() => setAppraisingItem(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white"><X className="w-5 h-5"/></button>

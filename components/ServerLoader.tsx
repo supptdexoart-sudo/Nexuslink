@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Server, RefreshCw, PowerOff, ShieldCheck, WifiOff } from 'lucide-react';
@@ -86,8 +85,10 @@ const ServerLoader: React.FC<ServerLoaderProps> = ({ onConnected, onSwitchToOffl
       <div className="relative z-10 flex flex-col items-center max-w-sm w-full">
         <div className="relative mb-12">
             <motion.div 
-                animate={{ scale: [1, 2.5], opacity: [0.5, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                {...({
+                    animate: { scale: [1, 2.5], opacity: [0.5, 0] },
+                    transition: { duration: 2, repeat: Infinity, ease: "easeOut" }
+                } as any)}
                 className={`absolute inset-0 ${isOffline ? 'bg-amber-500/20' : 'bg-neon-blue/20'} rounded-full blur-md`}
             />
 
@@ -104,8 +105,10 @@ const ServerLoader: React.FC<ServerLoaderProps> = ({ onConnected, onSwitchToOffl
 
         <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden mb-6 relative">
             <motion.div 
-                animate={{ x: ['-100%', '100%'] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                {...({
+                    animate: { x: ['-100%', '100%'] },
+                    transition: { duration: 1.5, repeat: Infinity, ease: "linear" }
+                } as any)}
                 className={`absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent ${isOffline ? 'via-amber-500' : 'via-neon-blue'} to-transparent`}
             />
         </div>
@@ -115,9 +118,7 @@ const ServerLoader: React.FC<ServerLoaderProps> = ({ onConnected, onSwitchToOffl
         </h2>
         <motion.p 
             key={textIndex}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
+            {...({ initial: { opacity: 0, y: 5 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -5 } } as any)}
             className="text-xs text-zinc-500 font-mono uppercase tracking-wider text-center h-4"
         >
             {isOffline ? "Lokální protokoly aktivní" : loadingTexts[textIndex]}
@@ -136,8 +137,7 @@ const ServerLoader: React.FC<ServerLoaderProps> = ({ onConnected, onSwitchToOffl
 
         {isTakingLong && (
             <motion.button
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                {...({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } } as any)}
                 onClick={onSwitchToOffline}
                 className="mt-12 py-4 px-8 bg-amber-500/10 border border-amber-500/40 hover:bg-amber-500/20 rounded-xl flex items-center gap-3 text-xs font-black uppercase tracking-widest text-amber-500 hover:text-white transition-all shadow-[0_0_20px_rgba(245,158,11,0.1)]"
             >

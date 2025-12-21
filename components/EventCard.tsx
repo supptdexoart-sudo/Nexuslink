@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react'; 
 import { GameEvent, GameEventType, DilemmaOption } from '../types';
-import { X, ChevronRight, AlertTriangle, Info, Trash2, Skull, Crown, ShoppingBag, Zap, Shield, Swords, Coins, Heart, Footprints, Cross, Wand2, Sword, Scan } from 'lucide-react'; 
+import { X, ChevronRight, AlertTriangle, Info, Trash2, Skull, Crown, ShoppingBag, Zap, Shield, Swords, Coins, Heart, Footprints, Cross, Wand2, Sword, Scan, Map, Compass, Navigation, ArrowRight, CornerDownRight, Percent, Satellite, Wind, Battery, Radio, Hammer, Box } from 'lucide-react'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService'; 
 
@@ -10,7 +10,7 @@ interface EventCardProps {
   onClose: () => void;
   onSave?: () => Promise<void> | void;
   onDiscard?: () => Promise<void> | void;
-  onResolveDilemma?: (option: DilemmaOption) => void; 
+  onResolveDilemma?: (option: DilemmaOption, result: 'success' | 'fail') => void; 
   onUse?: () => Promise<void> | void; 
   isSaved?: boolean;
   isAdmin?: boolean;
@@ -28,6 +28,8 @@ const EventCard: React.FC<EventCardProps> = ({
 }) => {
   const [dilemmaStep, setDilemmaStep] = useState<'CHOICE' | 'RESULT'>('CHOICE');
   const [selectedOption, setSelectedOption] = useState<DilemmaOption | null>(null);
+  const [dilemmaOutcome, setDilemmaOutcome] = useState<'success' | 'fail'>('success');
+  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [expandedStat, setExpandedStat] = useState<string | null>(null); 
 
@@ -75,16 +77,31 @@ const EventCard: React.FC<EventCardProps> = ({
 
   const handleDilemmaChoice = (option: DilemmaOption) => {
     setSelectedOption(option);
+    
+    // RNG Logic
+    const roll = Math.random() * 100;
+    const isSuccess = roll < (option.successChance ?? 100);
+    const outcome = isSuccess ? 'success' : 'fail';
+    
+    setDilemmaOutcome(outcome);
     setDilemmaStep('RESULT');
-    playSound('success');
-    vibrate([30, 30]);
-    if (onResolveDilemma) onResolveDilemma(option);
+    
+    if (isSuccess) {
+        playSound('success');
+        vibrate([50, 50]);
+    } else {
+        playSound('error');
+        vibrate([100, 100]);
+    }
+
+    if (onResolveDilemma) onResolveDilemma(option, outcome);
   };
 
   const handleDiscardClick = () => {
     if (showDeleteConfirm && onDiscard) {
         onDiscard();
         playSound('error'); 
+        onClose(); // Auto close after delete
     } else {
         setShowDeleteConfirm(true);
         vibrate(20);
@@ -98,6 +115,13 @@ const EventCard: React.FC<EventCardProps> = ({
           text: 'text-red-500',
           accent: 'bg-red-600',
           icon: <Crown className="w-8 h-8 text-red-500" />
+      };
+      if (type === GameEventType.SPACE_STATION) return {
+          bg: 'bg-gradient-to-b from-slate-900/90 to-black',
+          border: 'border-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.2)]',
+          text: 'text-cyan-400',
+          accent: 'bg-cyan-500',
+          icon: <Satellite className="w-8 h-8 text-cyan-400" />
       };
       if (type === GameEventType.TRAP) return {
           bg: 'bg-gradient-to-b from-orange-950/90 to-black',
@@ -121,11 +145,11 @@ const EventCard: React.FC<EventCardProps> = ({
           icon: <Swords className="w-8 h-8 text-rose-500" />
       };
       if (type === GameEventType.DILEMA) return {
-          bg: 'bg-gradient-to-b from-purple-950/90 to-black',
-          border: 'border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.3)]',
+          bg: 'bg-[#0a0b0d]',
+          border: 'border-purple-500/50 shadow-[0_0_40px_rgba(168,85,247,0.2)]',
           text: 'text-purple-400',
           accent: 'bg-purple-500',
-          icon: <AlertTriangle className="w-8 h-8 text-purple-500" />
+          icon: <Map className="w-8 h-8 text-purple-400" />
       };
       const rarityColors: Record<string, string> = {
           'Legendary': 'border-signal-amber text-signal-amber shadow-[0_0_30px_rgba(255,157,0,0.3)]',
@@ -149,9 +173,11 @@ const EventCard: React.FC<EventCardProps> = ({
     <AnimatePresence>
         {expandedStat === label && (
             <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                {...({
+                    initial: { height: 0, opacity: 0 },
+                    animate: { height: 'auto', opacity: 1 },
+                    exit: { height: 0, opacity: 0 }
+                } as any)}
                 className="overflow-hidden"
             >
                 <div className="mt-2 p-2 bg-black/60 border border-white/10 rounded-lg text-[10px] text-zinc-300 leading-tight italic">
@@ -160,6 +186,51 @@ const EventCard: React.FC<EventCardProps> = ({
             </motion.div>
         )}
     </AnimatePresence>
+  );
+
+  const renderStationContent = () => (
+      <div className="space-y-4">
+          <div className="bg-cyan-950/20 border border-cyan-500/30 p-4 rounded-xl">
+               <div className="flex items-center gap-2 mb-2 text-cyan-400">
+                   <Radio className="w-4 h-4 animate-pulse" />
+                   <span className="text-[10px] uppercase font-bold tracking-widest">Stanice Online</span>
+               </div>
+               <p className="text-xs text-zinc-300 italic mb-4">"{event.stationConfig?.welcomeMessage || 'Vítejte na palubě. Systémy jsou funkční.'}"</p>
+               
+               <div className="space-y-2">
+                   <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
+                       <div className="flex items-center gap-2">
+                           <Wind className="w-4 h-4 text-cyan-300" />
+                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Doplnění Kyslíku (O2)</span>
+                       </div>
+                       <div className="text-yellow-500 font-mono text-xs font-bold flex items-center gap-1">
+                           {event.stationConfig?.o2RefillPrice || 10} <Coins className="w-3 h-3"/>
+                       </div>
+                   </div>
+
+                   <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
+                       <div className="flex items-center gap-2">
+                           <Shield className="w-4 h-4 text-slate-300" />
+                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Oprava Pláště (Armor)</span>
+                       </div>
+                       <div className="text-yellow-500 font-mono text-xs font-bold flex items-center gap-1">
+                           {event.stationConfig?.armorRepairPrice || 50} <Coins className="w-3 h-3"/>
+                       </div>
+                   </div>
+
+                   <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-white/5">
+                       <div className="flex items-center gap-2">
+                           <Battery className="w-4 h-4 text-green-400" />
+                           <span className="text-[10px] font-bold text-zinc-300 uppercase">Dobíjení (Mana)</span>
+                       </div>
+                       <div className="text-yellow-500 font-mono text-xs font-bold flex items-center gap-1">
+                           {event.stationConfig?.energyRechargePrice || 25} <Coins className="w-3 h-3"/>
+                       </div>
+                   </div>
+               </div>
+          </div>
+          <p className="text-[9px] text-zinc-500 text-center uppercase">Transakce probíhají manuální dedukcí kreditů v HUD.</p>
+      </div>
   );
 
   const renderTrapContent = () => (
@@ -256,6 +327,25 @@ const EventCard: React.FC<EventCardProps> = ({
           <p className="text-[8px] text-white/30 uppercase font-black tracking-widest flex items-center gap-2 mb-2">
             <Info className="w-3 h-3" /> Klikni na stat pro vysvětlení vlivu
           </p>
+          
+          {/* RESOURCE CONTAINER DISPLAY */}
+          {event.resourceConfig?.isResourceContainer && (
+              <div className="bg-orange-950/20 border border-orange-500/30 p-4 rounded-xl flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-black border border-orange-500/50 rounded-lg shadow-[0_0_15px_rgba(249,115,22,0.15)]">
+                      <Hammer className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <div>
+                      <h4 className="text-[10px] font-black uppercase text-orange-500 tracking-widest mb-1 flex items-center gap-2">
+                          <Box className="w-3 h-3"/> {event.resourceConfig.customLabel || 'Surovina k Těžbě'}
+                      </h4>
+                      <p className="text-lg font-mono font-bold text-white uppercase leading-none">
+                          {event.resourceConfig.resourceName} <span className="text-orange-500 text-sm">x{event.resourceConfig.resourceAmount}</span>
+                      </p>
+                      <p className="text-[8px] text-zinc-500 font-mono mt-1">Lze použít pro crafting nebo prodej.</p>
+                  </div>
+              </div>
+          )}
+
           {event.stats && event.stats.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
                   {event.stats.map((stat, idx) => (
@@ -275,26 +365,36 @@ const EventCard: React.FC<EventCardProps> = ({
           
           <div className="flex justify-between items-center bg-zinc-900 p-3 rounded-lg border border-zinc-700">
               <span className="text-[10px] font-bold text-zinc-400 uppercase">Tržní Hodnota</span>
-              <div className="flex items-center gap-2 text-yellow-500"><Coins className="w-4 h-4" /><span className="font-mono font-bold text-lg">{event.price || 50}</span></div>
+              <div className="flex items-center gap-2 text-yellow-500"><Coins className="w-4 h-4" /><span className="font-mono font-bold text-lg">{event.price ?? 50}</span></div>
           </div>
       </div>
   );
 
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 1.05, y: -20 }} className="fixed inset-0 z-[150] bg-black/95 flex items-center justify-center p-6 backdrop-blur-md">
+    <motion.div {...({ initial: { opacity: 0, scale: 0.95, y: 20 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 1.05, y: -20 } } as any)} className="fixed inset-0 z-[150] bg-black/95 flex items-center justify-center p-6 backdrop-blur-md">
       <div className={`w-full max-w-sm ${theme.bg} border-2 ${theme.border} relative overflow-hidden flex flex-col shadow-2xl rounded-3xl max-h-[90vh]`}>
+        
+        {/* HEADER */}
         <div className="relative p-6 pb-4 z-10">
           <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
           <div className="flex justify-between items-start mb-2">
               <div className={`p-3 rounded-xl bg-black/40 border border-white/10 backdrop-blur-sm ${theme.text}`}>{theme.icon}</div>
               <button onClick={onClose} className="p-2 text-white/30 hover:text-white transition-colors bg-black/20 rounded-full"><X className="w-6 h-6" /></button>
           </div>
-          <span className="text-[9px] font-mono font-bold text-white/30 uppercase tracking-[0.3em] block mb-1">{event.type} • {event.id}</span>
+          <span className="text-[9px] font-mono font-bold text-white/30 uppercase tracking-[0.3em] block mb-1">
+            {isDilemma ? 'TAKTICKÉ ROZHODNUTÍ' : `${event.type} • ${event.id}`}
+          </span>
           <h2 className={`text-3xl font-black uppercase tracking-tighter leading-none font-sans ${theme.text} drop-shadow-md`}>{event.title}</h2>
-          <div className={`inline-block mt-2 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest border rounded ${theme.border} ${theme.text} bg-black/40`}>{event.rarity}</div>
+          
+          {!isDilemma && (
+            <div className={`inline-block mt-2 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest border rounded ${theme.border} ${theme.text} bg-black/40`}>{event.rarity}</div>
+          )}
         </div>
 
+        {/* CONTENT */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-6 relative z-10">
+          
+          {/* Main Description */}
           <div className="mb-6 relative">
              <div className={`absolute top-0 left-0 w-1 h-full ${theme.accent} opacity-50`} />
              <p className="pl-4 text-xs text-zinc-300 italic leading-relaxed font-serif opacity-90">"{event.description}"</p>
@@ -305,41 +405,131 @@ const EventCard: React.FC<EventCardProps> = ({
                 {event.type === GameEventType.TRAP && renderTrapContent()}
                 {(event.type === GameEventType.ENCOUNTER || event.type === GameEventType.BOSS) && renderCombatContent()}
                 {event.type === GameEventType.MERCHANT && renderMerchantContent()}
-                {event.type === GameEventType.ITEM && renderItemContent()}
+                {/* Fallback to renderItemContent if type is ITEM or undefined/generic */}
+                {(event.type === GameEventType.ITEM || event.type === 'PŘEDMĚT' as GameEventType) && renderItemContent()}
+                {event.type === GameEventType.SPACE_STATION && renderStationContent()}
             </div>
           )}
 
+          {/* NEW DILEMMA UI */}
           {isDilemma && dilemmaStep === 'CHOICE' && (
-            <div className="space-y-3 mt-4">
-              <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Vyberte Osud:</p>
-              {event.dilemmaOptions?.map((opt, i) => (
-                <button key={i} onClick={() => handleDilemmaChoice(opt)} className="w-full p-4 border border-purple-500/30 bg-purple-900/10 hover:bg-purple-900/30 text-white text-left text-[11px] font-bold uppercase tracking-[0.1em] transition-all flex justify-between items-center group rounded-xl">
-                  <span>{opt.label}</span>
-                  <ChevronRight className="w-4 h-4 text-purple-500" />
-                </button>
-              ))}
+            <div className="space-y-4 mt-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Compass className="w-4 h-4 text-purple-400 animate-pulse" />
+                <p className="text-[10px] font-bold text-purple-400 uppercase tracking-[0.2em]">Analýza Rozcestí</p>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-3">
+                {event.dilemmaOptions?.map((opt, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => handleDilemmaChoice(opt)} 
+                    className="relative group p-0 overflow-hidden rounded-xl border border-purple-500/30 bg-purple-900/10 hover:border-purple-400 hover:bg-purple-900/20 transition-all active:scale-[0.98]"
+                  >
+                    <div className="absolute top-0 right-0 p-2 opacity-50">
+                        <Navigation className="w-12 h-12 text-purple-500/20 group-hover:text-purple-400/30 transition-colors" />
+                    </div>
+                    <div className="p-4 flex flex-col items-start relative z-10">
+                        <div className="flex justify-between w-full">
+                            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1 group-hover:text-purple-300">TRASA {String.fromCharCode(65+i)}</span>
+                            {opt.successChance !== undefined && opt.successChance < 100 && (
+                                <span className="text-[9px] font-bold text-zinc-500 flex items-center gap-1"><Percent className="w-3 h-3"/> {opt.successChance}%</span>
+                            )}
+                        </div>
+                        <span className="text-sm font-bold text-white uppercase tracking-wider text-left w-full">{opt.label}</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 w-full h-1 bg-purple-500/20 group-hover:bg-purple-400 transition-colors" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {isDilemma && dilemmaStep === 'RESULT' && (
-            <div className="space-y-4 mt-6 bg-purple-900/20 p-4 rounded-xl border border-purple-500/30">
-              <div className="flex items-center gap-2 text-purple-400 mb-2"><Info className="w-4 h-4" /><span className="text-[10px] font-bold uppercase tracking-widest">Následek Volby</span></div>
-              <p className="text-sm text-white font-bold leading-relaxed">{selectedOption?.consequenceText}</p>
+            <div className="space-y-6 mt-4 animate-in slide-in-from-right-8 duration-300">
+              
+              {/* Consequence Block */}
+              <div className={`p-5 rounded-2xl border relative overflow-hidden ${dilemmaOutcome === 'success' ? 'bg-purple-900/20 border-purple-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
+                <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-bl-full pointer-events-none" />
+                <div className={`flex items-center gap-2 mb-3 ${dilemmaOutcome === 'success' ? 'text-purple-400' : 'text-red-400'}`}>
+                    {dilemmaOutcome === 'success' ? <Info className="w-4 h-4" /> : <Skull className="w-4 h-4" />}
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{dilemmaOutcome === 'success' ? 'Taktický Důsledek' : 'Selhání Operace'}</span>
+                </div>
+                <p className="text-sm text-white font-medium leading-relaxed">
+                    {dilemmaOutcome === 'success' ? selectedOption?.consequenceText : selectedOption?.failMessage || "Akce selhala."}
+                </p>
+                
+                {/* Rewards / Damage Pills */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {dilemmaOutcome === 'success' && selectedOption?.rewards?.map((rew, idx) => (
+                        <div key={idx} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border bg-green-500/10 border-green-500/30 text-green-400">
+                            {rew.type === 'HP' ? <Heart className="w-3 h-3" /> : rew.type === 'GOLD' ? <Coins className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
+                            <span>+{rew.value} {rew.type}</span>
+                        </div>
+                    ))}
+                    {/* Backward compatibility for old effectType */}
+                    {dilemmaOutcome === 'success' && !selectedOption?.rewards && selectedOption?.effectType && selectedOption.effectType !== 'none' && (
+                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${selectedOption.effectValue > 0 ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                            {selectedOption.effectType === 'hp' ? <Heart className="w-3 h-3" /> : <Coins className="w-3 h-3" />}
+                            <span>{selectedOption.effectValue > 0 ? '+' : ''}{selectedOption.effectValue} {selectedOption.effectType.toUpperCase()}</span>
+                        </div>
+                    )}
+
+                    {dilemmaOutcome === 'fail' && selectedOption?.failDamage ? (
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border bg-red-500/10 border-red-500/30 text-red-400">
+                            <Skull className="w-3 h-3" />
+                            <span>-{selectedOption.failDamage} HP</span>
+                        </div>
+                    ) : null}
+                </div>
+              </div>
+
+              {/* PHYSICAL BOARD INSTRUCTION - Highlighted */}
+              {selectedOption?.physicalInstruction && (
+                  <div className="relative">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-signal-amber to-transparent opacity-30 blur rounded-lg" />
+                      <div className="relative bg-black border-l-4 border-signal-amber p-4 rounded-r-xl">
+                          <div className="flex items-center gap-2 text-signal-amber mb-2">
+                              <CornerDownRight className="w-5 h-5" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Rozkaz pro Desku</span>
+                          </div>
+                          <p className="text-xs text-white font-mono font-bold leading-relaxed uppercase">
+                              {selectedOption.physicalInstruction}
+                          </p>
+                      </div>
+                  </div>
+              )}
             </div>
           )}
         </div>
 
+        {/* FOOTER ACTIONS */}
         <div className="p-4 bg-black/60 border-t border-white/5 flex flex-col gap-2 relative z-10 backdrop-blur-md">
           <div className="flex gap-3">
-              {onUse && dilemmaStep !== 'RESULT' && !isDilemma && (
+              {onUse && dilemmaStep !== 'RESULT' && !isDilemma && !event.resourceConfig?.isResourceContainer && (
                 <button onClick={onUse} className={`flex-1 py-4 text-black font-black uppercase text-[11px] tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all font-mono rounded-xl shadow-lg ${theme.accent}`}>
                     {event.type === GameEventType.TRAP ? 'Pokusit se Odejít' : 
                      event.type === GameEventType.ENCOUNTER ? 'Zahájit Boj' : 
-                     event.type === GameEventType.MERCHANT ? 'Otevřít Obchod' : 'Použít'}
+                     event.type === GameEventType.MERCHANT ? 'Otevřít Obchod' :
+                     event.type === GameEventType.SPACE_STATION ? 'Dokovat' : 'Použít'}
                 </button>
               )}
-              {onSave && !isSaved && (
-                <button onClick={onSave} className="flex-1 py-4 border border-white/20 text-white font-black uppercase text-[11px] tracking-[0.2em] hover:bg-white/5 active:scale-95 transition-all font-mono rounded-xl">Uložit</button>
+              {dilemmaStep === 'RESULT' && isDilemma && (
+                  <button onClick={onClose} className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white font-black uppercase text-[11px] tracking-[0.2em] active:scale-95 transition-all rounded-xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2">
+                      Pokračovat v Misi <ArrowRight className="w-4 h-4" />
+                  </button>
+              )}
+              {onSave && !isSaved ? (
+                <button onClick={onSave} className={`flex-1 py-4 border ${event.resourceConfig?.isResourceContainer ? 'border-orange-500 text-orange-500 bg-orange-950/20 hover:bg-orange-900/40' : 'border-white/20 text-white hover:bg-white/5'} font-black uppercase text-[11px] tracking-[0.2em] active:scale-95 transition-all font-mono rounded-xl flex items-center justify-center gap-2`}>
+                    {event.resourceConfig?.isResourceContainer ? <><Hammer className="w-4 h-4"/> Vytěžit</> : 'Uložit'}
+                </button>
+              ) : (
+                 // If saved and no use button (resource), show "Owned" to prevent empty footer
+                 isSaved && event.resourceConfig?.isResourceContainer && (
+                     <div className="flex-1 py-4 border border-white/10 bg-white/5 text-zinc-500 font-black uppercase text-[11px] tracking-[0.2em] rounded-xl flex items-center justify-center gap-2 cursor-default">
+                         <Box className="w-4 h-4"/> VLASTNĚNO
+                     </div>
+                 )
               )}
           </div>
           {isSaved && onDiscard && !isDilemma && (

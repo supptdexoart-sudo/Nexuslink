@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Volume2, VolumeX, Vibrate, VibrateOff, LogOut, ChevronRight, ArrowLeft, Shield } from 'lucide-react';
+import { BookOpen, Volume2, VolumeX, Vibrate, VibrateOff, LogOut, ChevronRight, ArrowLeft, Shield, Maximize, Minimize } from 'lucide-react';
 import ManualView from './ManualView';
 
 interface SettingsViewProps {
@@ -18,14 +18,35 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   onBack, onLogout, soundEnabled, vibrationEnabled, onToggleSound, onToggleVibration, userEmail 
 }) => {
   const [showManual, setShowManual] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    // Initial check
+    setIsFullscreen(!!document.fullscreenElement);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn("Fullscreen toggle failed:", err);
+    }
+  };
 
   if (showManual) return <ManualView onBack={() => setShowManual(false)} />;
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      exit={{ opacity: 0, y: 20 }}
+      {...({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 20 } } as any)}
       className="flex flex-col h-full bg-[#0a0b0d] p-6"
     >
       <div className="flex items-center gap-4 mb-8">
@@ -74,6 +95,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           >
             {vibrationEnabled ? <Vibrate className="w-6 h-6 text-signal-cyan" /> : <VibrateOff className="w-6 h-6 text-zinc-500" />}
             <span className="text-[9px] font-black uppercase tracking-[0.2em]">{vibrationEnabled ? 'Haptika_ZAP' : 'Haptika_VYP'}</span>
+          </button>
+
+          <button 
+            onClick={toggleFullscreen}
+            className={`col-span-2 p-4 tactical-card border-white/10 flex flex-col items-center gap-3 transition-all active:scale-95 ${isFullscreen ? 'bg-signal-cyan/5 border-signal-cyan/30' : 'bg-white/5 opacity-50'}`}
+          >
+            {isFullscreen ? <Minimize className="w-6 h-6 text-signal-cyan" /> : <Maximize className="w-6 h-6 text-zinc-500" />}
+            <span className="text-[9px] font-black uppercase tracking-[0.2em]">{isFullscreen ? 'Fullscreen_ZAP' : 'Fullscreen_VYP'}</span>
           </button>
         </div>
 

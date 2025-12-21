@@ -1,4 +1,3 @@
-
 import { GameEvent, GameEventType } from "../types";
 
 // Tyto karty budou dostupné VŽDY, i bez prvního připojení k internetu.
@@ -44,8 +43,8 @@ export const NEXUS_SEED_DATA: GameEvent[] = [
     type: GameEventType.DILEMA,
     rarity: "Common",
     dilemmaOptions: [
-        { label: "Vykopnout dveře", consequenceText: "Dveře povolí, ale hluk přilákal nepřátele!", effectType: "hp", effectValue: -10 },
-        { label: "Opatrně otevřít", consequenceText: "Podařilo se ti vklouznout dovnitř tiše.", effectType: "none", effectValue: 0 }
+        { label: "Vykopnout dveře", successChance: 100, consequenceText: "Dveře povolí, ale hluk přilákal nepřátele!", effectType: "hp", effectValue: -10 },
+        { label: "Opatrně otevřít", successChance: 100, consequenceText: "Podařilo se ti vklouznout dovnitř tiše.", effectType: "none", effectValue: 0 }
     ]
   },
   {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Skull, Sword, Clock, Trophy } from 'lucide-react';
@@ -65,9 +64,7 @@ const BossRaidScreen: React.FC<BossRaidScreenProps> = ({ roomId, playerNickname,
 
     return (
         <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)}
             className="fixed inset-0 z-[80] bg-black/95 flex flex-col items-center justify-center p-4 overflow-hidden"
         >
             {/* Background Pulse Effect */}
@@ -78,8 +75,10 @@ const BossRaidScreen: React.FC<BossRaidScreenProps> = ({ roomId, playerNickname,
                 {/* BOSS HEADER */}
                 <div className="text-center mb-6">
                     <motion.div 
-                        animate={{ scale: isMyTurn ? [1, 1.1, 1] : 1 }}
-                        transition={{ repeat: Infinity, duration: 2 }}
+                        {...({
+                            animate: { scale: isMyTurn ? [1, 1.1, 1] : 1 },
+                            transition: { repeat: Infinity, duration: 2 }
+                        } as any)}
                         className="w-24 h-24 bg-red-950 rounded-full border-4 border-red-600 flex items-center justify-center mx-auto mb-4 shadow-[0_0_50px_rgba(220,38,38,0.5)]"
                     >
                         <Skull className="w-12 h-12 text-white" />
@@ -101,9 +100,11 @@ const BossRaidScreen: React.FC<BossRaidScreenProps> = ({ roomId, playerNickname,
                     <div className="h-6 bg-zinc-900 rounded-full border-2 border-zinc-700 overflow-hidden relative">
                         <motion.div 
                             className="h-full bg-gradient-to-r from-red-600 to-red-800"
-                            initial={{ width: '100%' }}
-                            animate={{ width: `${(raidState.currentHp / raidState.maxHp) * 100}%` }}
-                            transition={{ type: 'spring', damping: 20 }}
+                            {...({
+                                initial: { width: '100%' },
+                                animate: { width: `${(raidState.currentHp / raidState.maxHp) * 100}%` },
+                                transition: { type: 'spring', damping: 20 }
+                            } as any)}
                         />
                     </div>
                 </div>

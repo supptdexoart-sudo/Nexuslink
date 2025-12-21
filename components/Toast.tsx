@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle, Info, Gift, MessageSquare, X } from 'lucide-react';
@@ -38,11 +37,13 @@ const Toast: React.FC<ToastProps> = ({ data, onClose }) => {
 
   return (
     <motion.div
-      layout
+      {...({
+        layout: true,
+        initial: { opacity: 0, y: -50 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, scale: 0.9, transition: { duration: 0.1 } }
+      } as any)}
       key={data.id}
-      initial={{ opacity: 0, y: -50 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
       className={`fixed top-4 left-4 right-4 z-[10000] shadow-[0_10px_40px_rgba(0,0,0,0.6)] border-l-8 border-black font-mono overflow-hidden ${style.bg} rounded-l-lg mx-auto max-w-sm`}
     >
       <div className="p-4 flex flex-col gap-2 relative">
@@ -56,9 +57,11 @@ const Toast: React.FC<ToastProps> = ({ data, onClose }) => {
          <p className="text-[12px] font-bold uppercase leading-tight py-1">{data.message}</p>
          
          <motion.div 
-            initial={{ width: "100%" }}
-            animate={{ width: "0%" }}
-            transition={{ duration: 4, ease: "linear" }}
+            {...({
+                initial: { width: "100%" },
+                animate: { width: "0%" },
+                transition: { duration: 4, ease: "linear" }
+            } as any)}
             className="absolute bottom-0 left-0 h-1 bg-black/20"
          />
       </div>

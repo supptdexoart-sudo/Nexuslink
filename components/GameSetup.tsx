@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, Hash, ArrowRight, Gamepad2, Loader2, Users, Sword, Wand2, Footprints, Cross, Lock, Eye, EyeOff, AlertTriangle, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -111,9 +110,7 @@ const GameSetup: React.FC<GameSetupProps> = ({ initialNickname, onConfirmSetup, 
 
         <motion.div 
             key={step}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            {...({ initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 } } as any)}
             className="w-full max-w-sm relative z-10 pb-10"
         >
             {/* --- STEP 1: NICKNAME --- */}
@@ -171,7 +168,7 @@ const GameSetup: React.FC<GameSetupProps> = ({ initialNickname, onConfirmSetup, 
                                     </div>
                                 </div>
                                 {selectedClass === c.id && (
-                                    <motion.div layoutId="class-highlight" className={`absolute inset-0 opacity-10 ${c.color.replace('text-', 'bg-')}`} />
+                                    <motion.div {...({ layoutId: "class-highlight" } as any)} className={`absolute inset-0 opacity-10 ${c.color.replace('text-', 'bg-')}`} />
                                 )}
                             </button>
                         ))}

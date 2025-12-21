@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap } from 'lucide-react';
+import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap, Satellite, Hammer, Filter, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService';
 
@@ -22,9 +22,12 @@ interface InventoryViewProps {
 }
 
 type SortMode = 'DEFAULT' | 'RARITY' | 'SPECIALIZATION';
+type FilterCategory = 'ALL' | 'RESOURCES' | 'ITEMS' | 'OTHERS';
 
 const getRarityConfig = (rarity: string, type: string) => {
     if (type === GameEventType.BOSS) return { border: 'border-signal-hazard shadow-[0_0_15px_rgba(255,60,60,0.3)]', text: 'text-signal-hazard', label: 'BOSS_LEVEL' };
+    if (type === GameEventType.SPACE_STATION) return { border: 'border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.3)]', text: 'text-cyan-400', label: 'ORBITÁLNÍ' };
+    
     const r = (rarity || 'Common').toLowerCase();
     switch (r) {
         case 'legendary': return { border: 'border-signal-amber shadow-[0_0_15px_rgba(255,157,0,0.4)]', text: 'text-signal-amber', label: 'LEGENDÁRNÍ' };
@@ -34,13 +37,15 @@ const getRarityConfig = (rarity: string, type: string) => {
     }
 };
 
-const getEventIcon = (type: GameEventType) => {
+const getEventIcon = (type: GameEventType, isResource: boolean) => {
+    if (isResource) return <Hammer className="w-4 h-4" />;
     switch (type) {
         case GameEventType.BOSS: return <Crown className="w-4 h-4" />;
         case GameEventType.ITEM: return <Box className="w-4 h-4" />;
         case GameEventType.MERCHANT: return <ShoppingBag className="w-4 h-4" />;
         case GameEventType.TRAP: return <Swords className="w-4 h-4" />;
         case GameEventType.ENCOUNTER: return <Swords className="w-4 h-4" />;
+        case GameEventType.SPACE_STATION: return <Satellite className="w-4 h-4" />;
         default: return <BookOpen className="w-4 h-4" />;
     }
 };
@@ -49,7 +54,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     inventory, loadingInventory, isRefreshing, playerClass,
     onRefresh, onItemClick
 }) => {
-    const [selectedCategory] = useState<GameEventType | 'ALL' | 'OTHERS'>('ALL');
+    const [selectedCategory, setSelectedCategory] = useState<FilterCategory>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('DEFAULT');
     
     // Comparison State
@@ -80,14 +85,18 @@ const InventoryView: React.FC<InventoryViewProps> = ({
 
     const sortedAndFilteredInventory = useMemo(() => {
         let result = [...inventory];
-        if (selectedCategory !== 'ALL') {
-            if (selectedCategory === 'OTHERS') {
-                const otherTypes = [GameEventType.ENCOUNTER, GameEventType.TRAP, GameEventType.DILEMA];
-                result = result.filter(i => otherTypes.includes(i.type));
-            } else {
-                result = result.filter(item => item.type === selectedCategory);
-            }
+        
+        // 1. FILTERING
+        if (selectedCategory === 'RESOURCES') {
+            result = result.filter(i => i.resourceConfig?.isResourceContainer);
+        } else if (selectedCategory === 'ITEMS') {
+            result = result.filter(i => (i.type === GameEventType.ITEM || i.type === 'PŘEDMĚT' as GameEventType) && !i.resourceConfig?.isResourceContainer);
+        } else if (selectedCategory === 'OTHERS') {
+            const otherTypes = [GameEventType.ENCOUNTER, GameEventType.TRAP, GameEventType.DILEMA, GameEventType.BOSS, GameEventType.SPACE_STATION];
+            result = result.filter(i => otherTypes.includes(i.type));
         }
+
+        // 2. SORTING
         if (sortMode === 'RARITY') {
             const power: Record<string, number> = { 'legendary': 3, 'epic': 2, 'rare': 1, 'common': 0 };
             result.sort((a, b) => {
@@ -102,6 +111,13 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                 return bHasClass - aHasClass;
             });
         } else {
+            // Default: Resources first, then newest
+            result.sort((a, b) => {
+                const aRes = a.resourceConfig?.isResourceContainer ? 1 : 0;
+                const bRes = b.resourceConfig?.isResourceContainer ? 1 : 0;
+                if (aRes !== bRes) return bRes - aRes; // Resources on top
+                return 0; // Maintain original order (newest usually last in array, mapped reversely)
+            });
             result.reverse(); 
         }
         return result;
@@ -111,6 +127,13 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         { id: 'DEFAULT', label: 'VÝCHOZÍ', icon: ArrowDownAZ },
         { id: 'RARITY', label: 'VZÁCNOST', icon: Star },
         { id: 'SPECIALIZATION', label: 'TŘÍDA', icon: Target },
+    ];
+
+    const filterOptions = [
+        { id: 'ALL', label: 'VŠE', icon: Layers },
+        { id: 'RESOURCES', label: 'SUROVINY', icon: Hammer },
+        { id: 'ITEMS', label: 'VYBAVENÍ', icon: Box },
+        { id: 'OTHERS', label: 'OSTATNÍ', icon: Filter },
     ];
 
     // --- RENDER COMPARISON MODAL ---
@@ -130,7 +153,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         };
 
         return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-xl p-6 flex flex-col">
+            <motion.div {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-xl p-6 flex flex-col">
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h2 className="text-2xl font-black uppercase text-signal-cyan chromatic-text">Taktické Srovnání</h2>
@@ -146,7 +169,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                             const config = getRarityConfig(item.rarity, item.type);
                             return (
                                 <div key={idx} className={`p-4 tactical-card bg-white/5 border-t-4 ${config.border}`}>
-                                    <div className={`mb-2 ${config.text}`}>{getEventIcon(item.type)}</div>
+                                    <div className={`mb-2 ${config.text}`}>{getEventIcon(item.type, !!item.resourceConfig?.isResourceContainer)}</div>
                                     <h3 className="text-xs font-black uppercase text-white truncate leading-tight">{item.title}</h3>
                                     <p className="text-[8px] text-zinc-500 font-mono mt-1">{config.label}</p>
                                 </div>
@@ -226,7 +249,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             </div>
 
             {isCompareMode && (
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-3 bg-signal-cyan/10 border border-signal-cyan/30 rounded-xl flex items-center justify-between">
+                <motion.div {...({ initial: { opacity: 0, y: -10 }, animate: { opacity: 1, y: 0 } } as any)} className="mb-4 p-3 bg-signal-cyan/10 border border-signal-cyan/30 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-signal-cyan rounded-full animate-pulse" />
                         <span className="text-[10px] font-black text-signal-cyan uppercase tracking-widest">
@@ -240,6 +263,28 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                 </motion.div>
             )}
 
+            {/* FILTER CATEGORIES */}
+            <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
+                {filterOptions.map((opt) => (
+                    <button
+                        key={opt.id}
+                        onClick={() => {
+                            setSelectedCategory(opt.id as FilterCategory);
+                            playSound('click');
+                        }}
+                        className={`px-4 py-2.5 rounded-lg flex items-center gap-2 border transition-all whitespace-nowrap ${
+                            selectedCategory === opt.id
+                            ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
+                            : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white hover:border-white/30'
+                        }`}
+                    >
+                        <opt.icon className="w-3 h-3" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">{opt.label}</span>
+                    </button>
+                ))}
+            </div>
+
+            {/* SORT OPTIONS */}
             <div className="flex gap-2 mb-4">
                 {sortOptions.map((opt) => (
                     <button
@@ -271,18 +316,23 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                         {sortedAndFilteredInventory.length === 0 ? (
                             <div className="col-span-2 flex flex-col items-center justify-center py-10 opacity-50">
                                 <Box className="w-12 h-12 text-zinc-600 mb-2" />
-                                <span className="text-xs font-mono uppercase text-zinc-500 font-bold">Batoh je prázdný</span>
+                                <span className="text-xs font-mono uppercase text-zinc-500 font-bold">Kategorie je prázdná</span>
                             </div>
                         ) : (
                             sortedAndFilteredInventory.map((item) => {
-                                const config = getRarityConfig(item.rarity, item.type);
+                                const isResource = !!item.resourceConfig?.isResourceContainer;
+                                const config = isResource 
+                                    ? { border: 'border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]', text: 'text-orange-500', label: 'SUROVINA' }
+                                    : getRarityConfig(item.rarity, item.type);
+                                
                                 const isSelected = selectedForCompare.some(i => i.id === item.id);
                                 
                                 return (
                                     <motion.div 
                                         key={item.id} 
                                         onClick={() => handleCardClick(item)}
-                                        className={`tactical-card h-48 flex flex-col justify-between p-4 bg-black/40 border-t-2 ${config.border} active:scale-95 transition-transform group relative ${isSelected ? 'scale-90 border-2 border-signal-cyan ring-4 ring-signal-cyan/20' : ''}`}
+                                        {...({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } } as any)}
+                                        className={`tactical-card h-48 flex flex-col justify-between p-4 bg-black/40 border-t-2 ${config.border} active:scale-95 transition-transform group relative ${isSelected ? 'scale-90 border-2 border-signal-cyan ring-4 ring-signal-cyan/20' : ''} ${isResource ? 'bg-orange-950/10' : ''}`}
                                     >
                                         {isSelected && (
                                             <div className="absolute inset-0 bg-signal-cyan/10 flex items-center justify-center z-10">
@@ -293,10 +343,15 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                         )}
                                         
                                         <div className="flex justify-between items-start">
-                                            <div className={`${config.text}`}>{getEventIcon(item.type)}</div>
+                                            <div className={`${config.text}`}>{getEventIcon(item.type, isResource)}</div>
+                                            {isResource && (
+                                                <div className="text-xs font-mono font-bold text-orange-500 bg-orange-950/50 px-2 py-0.5 rounded border border-orange-500/30">
+                                                    x{item.resourceConfig?.resourceAmount || 1}
+                                                </div>
+                                            )}
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-[10px] uppercase text-white line-clamp-2 group-hover:text-signal-cyan transition-colors">{item.title}</h3>
+                                            <h3 className={`font-bold text-[10px] uppercase line-clamp-2 transition-colors ${isResource ? 'text-orange-100 group-hover:text-orange-400' : 'text-white group-hover:text-signal-cyan'}`}>{item.title}</h3>
                                             <p className="text-[8px] text-zinc-500 font-mono mt-1">{config.label}</p>
                                         </div>
                                     </motion.div>

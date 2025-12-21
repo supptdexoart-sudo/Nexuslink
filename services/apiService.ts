@@ -44,6 +44,33 @@ export const checkHealth = async (): Promise<boolean> => {
     } catch { return false; }
 };
 
+export const downloadBackup = async (): Promise<void> => {
+    if (!navigator.onLine) throw new Error("Nelze zálohovat v offline režimu.");
+    const adminToken = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+    
+    // Tady nepoužíváme fetchData, protože chceme Blob, ne JSON response
+    const response = await fetch(`${BASE_API_URL}/admin/backup`, {
+        method: 'GET',
+        headers: {
+            'x-admin-key': adminToken || ''
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error('Chyba při stahování zálohy (Access Denied?)');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
 export const transferCard = async (fromEmail: string, toEmail: string, itemId: string): Promise<any> => {
     return fetchData(`${BASE_API_URL}/inventory/transfer`, {
         method: 'POST',

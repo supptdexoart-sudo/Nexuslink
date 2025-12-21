@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { GameEvent, DilemmaOption, PlayerClass } from '../types';
+import { GameEvent, DilemmaOption, PlayerClass, GameEventType } from '../types';
 import * as apiService from '../services/apiService';
 import { NEXUS_SEED_DATA } from '../services/seedData';
 import { playSound, vibrate, getSoundStatus, getVibrationStatus, toggleSoundSystem, toggleVibrationSystem } from '../services/soundService';
@@ -9,6 +9,7 @@ import { ToastData } from '../components/Toast';
 const ADMIN_EMAIL = 'zbynekbal97@gmail.com';
 const MAX_PLAYER_HP = 100;
 const MAX_PLAYER_MANA = 100;
+const MAX_PLAYER_FUEL = 100; // NEW CONSTANT
 const INITIAL_GOLD = 100;
 
 export enum Tab {
@@ -16,7 +17,8 @@ export enum Tab {
   INVENTORY = 'inventory',
   GENERATOR = 'generator',
   ROOM = 'room',
-  SETTINGS = 'settings'
+  SETTINGS = 'settings',
+  SPACESHIP = 'spaceship'
 }
 
 const isNightTime = (): boolean => {
@@ -68,11 +70,15 @@ export const useGameLogic = () => {
   });
 
   const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null);
+  const [activeStation, setActiveStation] = useState<GameEvent | null>(null);
   const [editingEvent, setEditingEvent] = useState<GameEvent | null>(null);
   const [eventSource, setEventSource] = useState<'scanner' | 'inventory' | 'inspect' | null>(null);
   const [actionTakenDuringEvent, setActionTakenDuringEvent] = useState(false);
-  const [screenFlash, setScreenFlash] = useState<'red' | 'green' | 'blue' | null>(null);
+  const [screenFlash, setScreenFlash] = useState<'red' | 'green' | 'blue' | 'amber' | null>(null);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  
+  // Docking State
+  const [isDocking, setIsDocking] = useState(false);
 
   const [inventory, setInventory] = useState<GameEvent[]>(() => {
       const saved = localStorage.getItem(`nexus_inv_${userEmail || 'guest'}`);
@@ -88,8 +94,10 @@ export const useGameLogic = () => {
   const [showTurnAlert] = useState(false);
   const [showRoundEndAlert, setShowRoundEndAlert] = useState(false);
 
+  // Player Stats
   const [playerHp, setPlayerHp] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_hp') || String(MAX_PLAYER_HP)));
   const [playerMana, setPlayerMana] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_mana') || String(MAX_PLAYER_MANA)));
+  const [playerFuel, setPlayerFuel] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_fuel') || String(MAX_PLAYER_FUEL)));
   const [playerGold, setPlayerGold] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_gold') || String(INITIAL_GOLD)));
   const [playerArmor, setPlayerArmor] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_armor') || "0"));
   const [playerLuck, setPlayerLuck] = useState<number>(() => parseInt(localStorage.getItem('nexus_player_luck') || "5"));
@@ -167,6 +175,26 @@ export const useGameLogic = () => {
     });
   };
 
+  const handleFuelChange = (amount: number) => {
+    setPlayerFuel(prev => {
+        const newValue = Math.max(0, Math.min(MAX_PLAYER_FUEL, prev + amount));
+        localStorage.setItem('nexus_player_fuel', String(newValue));
+        return newValue;
+    });
+    // Visual Feedback for Fuel Loss
+    if (amount < 0) {
+        setScreenFlash('amber');
+        playSound('error'); 
+        vibrate([50, 100, 50]); // Specific sputter vibration
+        setNotification({
+            id: 'fuel-' + Date.now(),
+            type: 'error',
+            message: `VAROVÁNÍ: Spotřeba Paliva ${amount}%`
+        });
+        setTimeout(() => setScreenFlash(null), 800);
+    }
+  };
+
   const handleGoldChange = (amount: number) => {
     setPlayerGold(prev => {
         const newValue = Math.max(0, prev + amount);
@@ -185,13 +213,36 @@ export const useGameLogic = () => {
           return newInv;
         });
       } else {
-        const saved = await apiService.saveCard(userEmail, event);
+        // Send to server
+        const serverResponse = await apiService.saveCard(userEmail, event);
+        
+        // CRITICAL FIX: Merge server response with local event data.
+        // This ensures that if the backend (MongoDB schema) strips new fields like 'resourceConfig' or 'price',
+        // we keep the local version in our state so the UI updates correctly immediately.
+        // We trust the server for the ID and basic structure, but trust the local input for content fields.
+        const mergedEvent: GameEvent = {
+            ...serverResponse, // Start with server confirmation (has _id, timestamps)
+            ...event,          // Overwrite with local data (has resourceConfig, price)
+            id: serverResponse.id // Ensure we use the canonical ID from server
+        };
+
+        // Update Inventory state with merged data
         setInventory(prev => {
-          const exists = prev.find(i => i.id === saved.id);
-          const newInv = exists ? prev.map(i => i.id === saved.id ? saved : i) : [...prev, saved];
+          const exists = prev.find(i => i.id === mergedEvent.id);
+          const newInv = exists ? prev.map(i => i.id === mergedEvent.id ? mergedEvent : i) : [...prev, mergedEvent];
           localStorage.setItem(`nexus_inv_${userEmail}`, JSON.stringify(newInv));
           return newInv;
         });
+
+        // Also update Master Catalog if Admin
+        if (isAdmin) {
+            setMasterCatalog(prev => {
+                const exists = prev.find(i => i.id === mergedEvent.id);
+                const newCat = exists ? prev.map(i => i.id === mergedEvent.id ? mergedEvent : i) : [...prev, mergedEvent];
+                localStorage.setItem('nexus_master_catalog', JSON.stringify(newCat));
+                return newCat;
+            });
+        }
       }
       addToLog(`Archivováno: ${event.title}`);
       setNotification({ id: 'save-' + Date.now(), message: 'Asset uložen do Batohu.', type: 'success' });
@@ -296,6 +347,7 @@ export const useGameLogic = () => {
     }
   };
 
+  // Used for "Offline Solo" mode toggling - puts the app in a local state
   const handleLeaveRoom = async () => {
     if (roomState.id && roomState.nickname) {
       await apiService.leaveRoom(roomState.id, roomState.nickname);
@@ -305,6 +357,19 @@ export const useGameLogic = () => {
     localStorage.removeItem('nexus_is_in_room');
     setIsSoloMode(true);
     localStorage.setItem('nexus_solo_mode', 'true');
+    setScanLog([]);
+  };
+
+  // Used to go back to the MAIN MENU (GameSetup) to Create/Join new rooms
+  const handleExitToMenu = async () => {
+    if (roomState.id && roomState.nickname) {
+        try { await apiService.leaveRoom(roomState.id, roomState.nickname); } catch(e) {}
+    }
+    setRoomState(prev => ({ ...prev, isInRoom: false, id: '', isNicknameSet: false }));
+    localStorage.removeItem('nexus_last_room_id');
+    localStorage.removeItem('nexus_is_in_room');
+    setIsSoloMode(false);
+    localStorage.setItem('nexus_solo_mode', 'false');
     setScanLog([]);
   };
 
@@ -387,35 +452,39 @@ export const useGameLogic = () => {
         playSound('error');
         return;
     }
+
+    // FUEL CHECK: Cannot scan if out of fuel (unless it's a friend code)
+    if (playerFuel <= 0 && !code.startsWith('friend:')) {
+        setNotification({ id: 'no-fuel', type: 'error', message: "NEDOSTATEK PALIVA: Loď nemůže manévrovat (skenovat)." });
+        playSound('error');
+        vibrate([200, 200, 200]);
+        return;
+    }
+
     setIsAIThinking(true);
     vibrate(50);
     playSound('scan');
     
+    // Check Local
     const localItem = inventory.find(i => i.id.toLowerCase() === code.toLowerCase());
     if (localItem) { 
-        setCurrentEvent(getAdjustedItem(localItem, isNight, playerClass)); 
-        addToLog(`Identifikováno: ${localItem.title}`);
-        setIsAIThinking(false);
+        handleFoundItem(localItem, 'scanner'); 
         return; 
     }
     
+    // Check Master
     const vaultItem = masterCatalog.find(i => i.id.toLowerCase() === code.toLowerCase());
     if (vaultItem) { 
-        setCurrentEvent(getAdjustedItem(vaultItem, isNight, playerClass)); 
-        setEventSource('scanner');
-        addToLog(`Nalezeno v Batohu: ${vaultItem.title}`);
-        setIsAIThinking(false);
+        handleFoundItem(vaultItem, 'scanner');
         return; 
     }
 
+    // Check Cloud
     if (!isGuest && navigator.onLine) {
         try {
             const cloudItem = await apiService.getCardById(ADMIN_EMAIL, code);
             if (cloudItem) {
-                setCurrentEvent(getAdjustedItem(cloudItem, isNight, playerClass));
-                setEventSource('scanner');
-                addToLog(`Staženo z cloudu: ${cloudItem.title}`);
-                setIsAIThinking(false);
+                handleFoundItem(cloudItem, 'scanner');
                 return;
             }
         } catch (e) {}
@@ -426,12 +495,81 @@ export const useGameLogic = () => {
     playSound('error');
   };
 
+  const handleFoundItem = (item: GameEvent, source: 'scanner' | 'inventory' | null = null) => {
+      // DEDUCT FUEL ON SCAN
+      if (source === 'scanner') {
+          handleFuelChange(-5); // 5% per scan
+          // Inform player about fuel usage
+          addToLog(`Manévr lodi: -5% Paliva`);
+      }
+
+      const adjusted = getAdjustedItem(item, isNight, playerClass);
+      
+      // SPECIAL CASE: SPACE STATION DOCKING
+      if (adjusted.type === GameEventType.SPACE_STATION && source === 'scanner') {
+          setIsAIThinking(false);
+          setIsDocking(true);
+          // We set the current event but wait for animation to finish before interaction
+          setCurrentEvent(adjusted);
+          setEventSource(source);
+          return;
+      }
+
+      setCurrentEvent(adjusted);
+      if (source) setEventSource(source);
+      addToLog(source === 'scanner' ? `Skenováno: ${adjusted.title}` : `Zobrazeno: ${adjusted.title}`);
+      setIsAIThinking(false);
+  };
+
+  const handleDockingComplete = () => {
+      setIsDocking(false);
+      // Event is already set in currentEvent, simply removing the animation layer reveals it
+  };
+
+  const handleResolveDilemma = (option: DilemmaOption, result: 'success' | 'fail') => {
+      setActionTakenDuringEvent(true);
+      
+      if (result === 'success') {
+          // Apply rewards
+          if (option.rewards) {
+              option.rewards.forEach(rew => {
+                  if (rew.type === 'HP') handleHpChange(rew.value);
+                  if (rew.type === 'GOLD') handleGoldChange(rew.value);
+                  if (rew.type === 'MANA') handleManaChange(rew.value);
+                  // XP would go here
+              });
+          }
+          // Legacy support
+          /* @ts-ignore */
+          if (option.effectType === 'hp') handleHpChange(option.effectValue);
+          /* @ts-ignore */
+          else if (option.effectType === 'gold') handleGoldChange(option.effectValue);
+          
+          addToLog(`Dilema: ${option.label} (ÚSPĚCH)`);
+      } else {
+          // Apply failure penalty
+          if (option.failDamage) {
+              handleHpChange(-Math.abs(option.failDamage));
+          }
+          addToLog(`Dilema: ${option.label} (SELHÁNÍ)`);
+      }
+  };
+
   const handleUseEvent = async (event: GameEvent) => {
       if (isBlocked) {
           setNotification({ id: 'block', type: 'error', message: "NEMŮŽEŠ POUŽÍT KARTU: Nejseš na tahu!" });
           playSound('error');
           return;
       }
+
+      // NEW: Special handling for entering Space Station
+      if (event.type === GameEventType.SPACE_STATION) {
+          setActiveStation(event);
+          setCurrentEvent(null);
+          addToLog(`Dokováno: ${event.title}`);
+          return;
+      }
+
       setActionTakenDuringEvent(true);
       if (event.stats) { 
           event.stats.forEach(stat => { 
@@ -445,6 +583,7 @@ export const useGameLogic = () => {
               else if (['ARMOR', 'OBRANA', 'BRNĚNÍ'].some(k => label.includes(k))) setPlayerArmor(prev => prev + val);
               else if (['LUCK', 'ŠTĚSTÍ'].some(k => label.includes(k))) setPlayerLuck(prev => prev + val);
               else if (['O2', 'KYSLÍK', 'OXYGEN'].some(k => label.includes(k))) setPlayerOxygen(prev => prev + val);
+              else if (['FUEL', 'PALIVO'].some(k => label.includes(k))) handleFuelChange(val);
           }); 
       }
       if (!inventory.some(i => i.id === event.id)) { setCurrentEvent(null); return; }
@@ -461,6 +600,11 @@ export const useGameLogic = () => {
           addToLog(`Aktivováno: ${event.title}`);
           setNotification({ id: 'act', type: 'info', message: `${event.title} aktivováno.` });
       }
+  };
+
+  const handleLeaveStation = () => {
+    setActiveStation(null);
+    setNotification({ id: 'undock', type: 'info', message: 'Odpojeno od stanice.' });
   };
 
   const closeEvent = () => {
@@ -493,14 +637,17 @@ export const useGameLogic = () => {
   return {
       userEmail, isAdmin, isGuest, isServerReady, setIsServerReady, isNight, adminNightOverride, setAdminNightOverride,
       activeTab, setActiveTab, currentEvent, setCurrentEvent, editingEvent, setEditingEvent, screenFlash, inventory, 
-      isRefreshing, notification, setNotification, showEndTurnPrompt, playerHp, playerMana, playerGold, playerArmor, playerLuck, playerOxygen, playerClass,
-      roomState, isSoloMode, giftTarget, setGiftTarget, isScannerPaused: !!currentEvent || showTurnAlert || showRoundEndAlert,
+      isRefreshing, notification, setNotification, showEndTurnPrompt, 
+      playerHp, playerMana, playerFuel, playerGold, playerArmor, playerLuck, playerOxygen, playerClass,
+      roomState, isSoloMode, giftTarget, setGiftTarget, isScannerPaused: !!currentEvent || showTurnAlert || showRoundEndAlert || isDocking || !!activeStation,
       isAIThinking, showTurnAlert, showRoundEndAlert, handleAcknowledgeRound,
       isMyTurn, isBlocked, handleStartGame,
+      isDocking, handleDockingComplete,
+      activeStation, handleLeaveStation, // NEW EXPORTS
       handleLogin: (email: string) => { localStorage.setItem('nexus_current_user', email); setUserEmail(email); if (email !== 'guest') setIsServerReady(false); },
       handleLogout: () => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); },
-      handleScanCode, handleSaveEvent, handleDeleteEvent, handleUseEvent, handleRefreshDatabase, handleGameSetup, handleLeaveRoom,
-      handleResolveDilemma: (option: DilemmaOption) => { setActionTakenDuringEvent(true); if (option.effectType === 'hp') handleHpChange(option.effectValue); else if (option.effectType === 'gold') handleGoldChange(option.effectValue); addToLog(`Volba: ${option.label}`); },
+      handleScanCode, handleSaveEvent, handleDeleteEvent, handleUseEvent, handleRefreshDatabase, handleGameSetup, handleLeaveRoom, handleExitToMenu,
+      handleResolveDilemma,
       handleEndTurn, handleSendMessage, closeEvent, handleHpChange, handleManaChange, handleGoldChange,
       handleOpenInventoryItem: (item: GameEvent) => { if (isAdmin) { setEditingEvent(item); setActiveTab(Tab.GENERATOR); } else { setEventSource('inventory'); setCurrentEvent(item); } },
       getAdjustedItem, handleSwapItems, soundEnabled, vibrationEnabled, 

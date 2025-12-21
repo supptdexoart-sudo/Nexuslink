@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -34,9 +33,11 @@ const ManualSection: React.FC<{
 const ManualView: React.FC<ManualViewProps> = ({ onBack }) => {
   return (
     <motion.div 
-      initial={{ opacity: 0, x: 50 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 50 }}
+      {...({
+        initial: { opacity: 0, x: 50 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: 50 }
+      } as any)}
       className="absolute inset-0 bg-zinc-950 z-[120] flex flex-col p-6 overflow-y-auto no-scrollbar"
     >
       <div className="flex items-center gap-4 mb-8 sticky top-0 bg-zinc-950/90 backdrop-blur-xl pb-4 z-10 border-b border-white/10">
