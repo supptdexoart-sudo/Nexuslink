@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap, Satellite, Hammer, Filter, Layers } from 'lucide-react';
+import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap, Satellite, Hammer, Filter, Layers, Copy, FlaskConical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService';
 
@@ -19,10 +19,17 @@ interface InventoryViewProps {
     onTransferItem?: (itemId: string, targetNickname: string) => void;
     userNickname?: string;
     roomMembers?: {name: string, hp: number}[];
+    isTestMode?: boolean; // New prop
 }
 
 type SortMode = 'DEFAULT' | 'RARITY' | 'SPECIALIZATION';
 type FilterCategory = 'ALL' | 'RESOURCES' | 'ITEMS' | 'OTHERS';
+
+// Extended type for stacked items display
+interface StackedGameEvent extends GameEvent {
+    _stackQty: number; // For non-resources (e.g. 5x Potion)
+    _virtualStack: boolean;
+}
 
 const getRarityConfig = (rarity: string, type: string) => {
     if (type === GameEventType.BOSS) return { border: 'border-signal-hazard shadow-[0_0_15px_rgba(255,60,60,0.3)]', text: 'text-signal-hazard', label: 'BOSS_LEVEL' };
@@ -52,7 +59,7 @@ const getEventIcon = (type: GameEventType, isResource: boolean) => {
 
 const InventoryView: React.FC<InventoryViewProps> = ({
     inventory, loadingInventory, isRefreshing, playerClass,
-    onRefresh, onItemClick
+    onRefresh, onItemClick, isTestMode
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<FilterCategory>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('DEFAULT');
@@ -84,9 +91,36 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     };
 
     const sortedAndFilteredInventory = useMemo(() => {
-        let result = [...inventory];
+        // 1. STACKING LOGIC
+        const stackedMap = new Map<string, StackedGameEvent>();
+
+        inventory.forEach(item => {
+            const isResource = !!item.resourceConfig?.isResourceContainer;
+            const groupKey = isResource 
+                ? `RES-${item.resourceConfig!.resourceName}`
+                : `ITEM-${item.title}-${item.type}-${item.rarity}`;
+
+            if (stackedMap.has(groupKey)) {
+                const existing = stackedMap.get(groupKey)!;
+                if (isResource) {
+                    existing.resourceConfig!.resourceAmount += item.resourceConfig!.resourceAmount;
+                } else {
+                    existing._stackQty += 1;
+                }
+            } else {
+                const clone: StackedGameEvent = { 
+                    ...item, 
+                    _stackQty: 1, 
+                    _virtualStack: true,
+                    resourceConfig: item.resourceConfig ? { ...item.resourceConfig } : undefined
+                };
+                stackedMap.set(groupKey, clone);
+            }
+        });
+
+        let result = Array.from(stackedMap.values());
         
-        // 1. FILTERING
+        // 2. FILTERING
         if (selectedCategory === 'RESOURCES') {
             result = result.filter(i => i.resourceConfig?.isResourceContainer);
         } else if (selectedCategory === 'ITEMS') {
@@ -96,7 +130,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             result = result.filter(i => otherTypes.includes(i.type));
         }
 
-        // 2. SORTING
+        // 3. SORTING
         if (sortMode === 'RARITY') {
             const power: Record<string, number> = { 'legendary': 3, 'epic': 2, 'rare': 1, 'common': 0 };
             result.sort((a, b) => {
@@ -111,12 +145,11 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                 return bHasClass - aHasClass;
             });
         } else {
-            // Default: Resources first, then newest
             result.sort((a, b) => {
                 const aRes = a.resourceConfig?.isResourceContainer ? 1 : 0;
                 const bRes = b.resourceConfig?.isResourceContainer ? 1 : 0;
-                if (aRes !== bRes) return bRes - aRes; // Resources on top
-                return 0; // Maintain original order (newest usually last in array, mapped reversely)
+                if (aRes !== bRes) return bRes - aRes; 
+                return 0; 
             });
             result.reverse(); 
         }
@@ -141,7 +174,6 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         if (selectedForCompare.length !== 2) return null;
         const [itemA, itemB] = selectedForCompare;
         
-        // Collect all unique stats from both
         const allStatLabels = Array.from(new Set([
             ...(itemA.stats || []).map(s => s.label),
             ...(itemB.stats || []).map(s => s.label)
@@ -163,7 +195,6 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
 
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
-                    {/* Items Header */}
                     <div className="grid grid-cols-2 gap-4">
                         {[itemA, itemB].map((item, idx) => {
                             const config = getRarityConfig(item.rarity, item.type);
@@ -177,7 +208,6 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                         })}
                     </div>
 
-                    {/* Stats Comparison Table */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-white/10 pb-2">
                             <Zap className="w-3 h-3" /> Parametry_Modulů
@@ -196,12 +226,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                     </div>
                                     <div className="grid grid-cols-2 gap-8 relative">
                                         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-6 bg-white/10" />
-                                        
                                         <div className={`text-center font-mono font-black text-lg ${numA > numB ? 'text-signal-cyan' : numA < numB ? 'text-zinc-600' : 'text-white'}`}>
                                             {valA}
                                             {numA > numB && <div className="text-[8px] text-signal-cyan/50 mt-1">▲ LEPŠÍ</div>}
                                         </div>
-                                        
                                         <div className={`text-center font-mono font-black text-lg ${numB > numA ? 'text-signal-cyan' : numB < numA ? 'text-zinc-600' : 'text-white'}`}>
                                             {valB}
                                             {numB > numA && <div className="text-[8px] text-signal-cyan/50 mt-1">▲ LEPŠÍ</div>}
@@ -210,10 +238,6 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                 </div>
                             );
                         })}
-                    </div>
-
-                    <div className="p-4 bg-zinc-900/50 border border-white/10 rounded-2xl italic text-[11px] text-zinc-400 leading-relaxed text-center">
-                        "Nexus AI doporučuje ponechat asset s vyšší energetickou integritou z vašeho Batohu."
                     </div>
                 </div>
 
@@ -230,8 +254,17 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                 <div className="flex flex-col">
                     <h2 className="text-3xl font-black uppercase tracking-tighter text-white font-sans chromatic-text leading-none">MŮJ BATOH</h2>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <Database className="w-4 h-4 text-signal-cyan/50" />
-                      <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-[0.4em]">Osobní_Zásoby_Sektoru</span>
+                        {isTestMode ? (
+                            <>
+                                <FlaskConical className="w-4 h-4 text-orange-500 animate-pulse" />
+                                <span className="text-[10px] text-orange-500 font-mono font-bold uppercase tracking-[0.4em]">TESTOVACÍ_PROFIL</span>
+                            </>
+                        ) : (
+                            <>
+                                <Database className="w-4 h-4 text-signal-cyan/50" />
+                                <span className="text-[10px] text-white/40 font-mono font-bold uppercase tracking-[0.4em]">Osobní_Zásoby</span>
+                            </>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -247,6 +280,15 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                     </button>
                 </div>
             </div>
+
+            {/* Warning Banner for Test Mode */}
+            {isTestMode && (
+                <div className="mb-4 bg-orange-950/30 border border-orange-500/50 p-2 rounded text-center">
+                    <p className="text-[9px] text-orange-500 font-bold uppercase tracking-widest">
+                        POZOR: Operujete v testovacím trezoru. Data zde neovlivňují Master Databázi.
+                    </p>
+                </div>
+            )}
 
             {isCompareMode && (
                 <motion.div {...({ initial: { opacity: 0, y: -10 }, animate: { opacity: 1, y: 0 } } as any)} className="mb-4 p-3 bg-signal-cyan/10 border border-signal-cyan/30 rounded-xl flex items-center justify-between">
@@ -326,6 +368,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                     : getRarityConfig(item.rarity, item.type);
                                 
                                 const isSelected = selectedForCompare.some(i => i.id === item.id);
+                                const stackedItem = item as StackedGameEvent;
                                 
                                 return (
                                     <motion.div 
@@ -344,9 +387,17 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                         
                                         <div className="flex justify-between items-start">
                                             <div className={`${config.text}`}>{getEventIcon(item.type, isResource)}</div>
+                                            
                                             {isResource && (
-                                                <div className="text-xs font-mono font-bold text-orange-500 bg-orange-950/50 px-2 py-0.5 rounded border border-orange-500/30">
+                                                <div className="text-xs font-mono font-bold text-orange-500 bg-orange-950/50 px-2 py-0.5 rounded border border-orange-500/30 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
                                                     x{item.resourceConfig?.resourceAmount || 1}
+                                                </div>
+                                            )}
+
+                                            {!isResource && stackedItem._stackQty > 1 && (
+                                                <div className="flex items-center gap-1 text-[10px] font-black text-white bg-red-600 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(220,38,38,0.5)] border border-red-400">
+                                                    <Copy className="w-3 h-3" />
+                                                    <span>x{stackedItem._stackQty}</span>
                                                 </div>
                                             )}
                                         </div>

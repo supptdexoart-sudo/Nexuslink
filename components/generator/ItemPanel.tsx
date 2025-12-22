@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { GameEvent, Stat } from '../../types';
-import { Box, Heart, Swords, Shield, Zap, Coins, Sparkles, Wind, Trash2, Fuel, Hammer, Scroll, Plus, Clock } from 'lucide-react';
+import { GameEvent, Stat, PlayerClass } from '../../types';
+import { Box, Heart, Swords, Shield, Zap, Coins, Sparkles, Wind, Trash2, Fuel, Hammer, Scroll, Plus, Clock, ShoppingCart, Recycle, Users, Tags, X } from 'lucide-react';
 
 interface ItemPanelProps {
     event: GameEvent;
@@ -14,6 +14,14 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
     // Local state for adding ingredients
     const [selectedIngredient, setSelectedIngredient] = useState('');
     const [ingredientAmount, setIngredientAmount] = useState(1);
+
+    // Local state for recycling output
+    const [selectedRecycleRes, setSelectedRecycleRes] = useState('');
+    const [recycleAmount, setRecycleAmount] = useState(1);
+
+    // Local state for market class deal
+    const [selectedMarketClass, setSelectedMarketClass] = useState<PlayerClass | ''>('');
+    const [classPriceMultiplier, setClassPriceMultiplier] = useState(0.8);
 
     const addQuickStat = (label: string, value: string = '+10') => {
         const currentStats = [...(event.stats || [])];
@@ -57,17 +65,30 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
         });
     };
 
+    const updateMarketConfig = (field: string, value: any) => {
+        onUpdate({
+            marketConfig: {
+                ...(event.marketConfig || {
+                    enabled: false,
+                    marketPrice: undefined,
+                    saleChance: 0,
+                    classModifiers: [],
+                    recyclingOutput: []
+                }),
+                [field]: value
+            }
+        });
+    };
+
     const addIngredient = () => {
         if (!selectedIngredient) return;
         const currentIngredients = event.craftingRecipe?.requiredResources || [];
-        // Prevent duplicates
         if (currentIngredients.some(i => i.resourceName === selectedIngredient)) return;
 
         updateCraftingConfig('requiredResources', [
             ...currentIngredients,
             { resourceName: selectedIngredient, amount: ingredientAmount }
         ]);
-        // Reset amount only, keep selection for fast adding if needed
         setIngredientAmount(1);
     };
 
@@ -76,8 +97,42 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
         updateCraftingConfig('requiredResources', currentIngredients.filter((_, i) => i !== index));
     };
 
-    // Filter available resources from master catalog for dropdown
-    // We assume items with resourceConfig.isResourceContainer=true are valid ingredients
+    // MARKET HELPERS
+    const addRecycleOutput = () => {
+        if (!selectedRecycleRes) return;
+        const currentRecycling = event.marketConfig?.recyclingOutput || [];
+        if (currentRecycling.some(r => r.resourceName === selectedRecycleRes)) return;
+
+        updateMarketConfig('recyclingOutput', [
+            ...currentRecycling,
+            { resourceName: selectedRecycleRes, amount: recycleAmount }
+        ]);
+        setRecycleAmount(1);
+    };
+
+    const removeRecycleOutput = (index: number) => {
+        const currentRecycling = event.marketConfig?.recyclingOutput || [];
+        updateMarketConfig('recyclingOutput', currentRecycling.filter((_, i) => i !== index));
+    };
+
+    const addClassModifier = () => {
+        if (!selectedMarketClass) return;
+        const currentModifiers = event.marketConfig?.classModifiers || [];
+        if (currentModifiers.some(m => m.playerClass === selectedMarketClass)) return;
+
+        updateMarketConfig('classModifiers', [
+            ...currentModifiers,
+            { playerClass: selectedMarketClass, priceMultiplier: classPriceMultiplier }
+        ]);
+        setSelectedMarketClass('');
+        setClassPriceMultiplier(0.8);
+    };
+
+    const removeClassModifier = (index: number) => {
+        const currentModifiers = event.marketConfig?.classModifiers || [];
+        updateMarketConfig('classModifiers', currentModifiers.filter((_, i) => i !== index));
+    };
+
     const availableResources = masterCatalog.filter(
         item => item.resourceConfig?.isResourceContainer
     );
@@ -137,6 +192,138 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                     />
                     <span className="absolute right-3 top-3 text-[10px] text-zinc-500 font-bold">GOLD</span>
                 </div>
+            </div>
+
+            {/* NEW: MARKET & RECYCLING CONFIG */}
+            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.marketConfig?.enabled ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-black border-arc-border/50'}`}>
+                <label className="flex items-center gap-4 p-4 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={event.marketConfig?.enabled || false} 
+                        onChange={(e) => updateMarketConfig('enabled', e.target.checked)} 
+                        className="w-5 h-5 rounded border-zinc-600 bg-zinc-900 text-indigo-500 focus:ring-indigo-500 accent-indigo-500" 
+                    />
+                    <div className="flex flex-col">
+                        <span className={`text-[11px] font-black uppercase tracking-widest flex items-center gap-2 ${event.marketConfig?.enabled ? 'text-indigo-400' : 'text-zinc-400'}`}>
+                            <ShoppingCart className="w-3 h-3" /> Konfigurace Tržiště & Recyklace
+                        </span>
+                    </div>
+                </label>
+
+                {event.marketConfig?.enabled && (
+                    <div className="p-4 pt-0 space-y-5 animate-in slide-in-from-top-2">
+                        
+                        {/* 1. Market Specifics */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Override Tržní Ceny (Volitelné)</label>
+                                <input 
+                                    type="number" 
+                                    placeholder="Standardní cena (zleva)"
+                                    value={event.marketConfig.marketPrice || ''} 
+                                    onChange={(e) => updateMarketConfig('marketPrice', e.target.value ? parseInt(e.target.value) : undefined)} 
+                                    className="w-full bg-black border border-indigo-500/30 p-2 text-white text-xs font-mono outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 flex items-center gap-1"><Tags className="w-3 h-3"/> Šance na Akci (%)</label>
+                                <input 
+                                    type="range" 
+                                    min="0" max="100"
+                                    value={event.marketConfig.saleChance || 0} 
+                                    onChange={(e) => updateMarketConfig('saleChance', parseInt(e.target.value))} 
+                                    className="w-full h-2 bg-black rounded-lg appearance-none cursor-pointer accent-indigo-500 mb-1"
+                                />
+                                <div className="text-right text-[10px] font-mono text-indigo-400">{event.marketConfig.saleChance || 0}%</div>
+                            </div>
+                        </div>
+
+                        {/* 2. Class Modifiers */}
+                        <div className="bg-black/40 p-3 rounded border border-indigo-500/20">
+                            <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-2 flex items-center gap-1"><Users className="w-3 h-3"/> Třídní Slevy / Přirážky</label>
+                            
+                            <div className="flex gap-2 mb-2">
+                                <select 
+                                    value={selectedMarketClass}
+                                    onChange={(e) => setSelectedMarketClass(e.target.value as PlayerClass)}
+                                    className="flex-[2] bg-black border border-zinc-600 text-white text-xs font-mono p-1.5 rounded outline-none focus:border-indigo-500"
+                                >
+                                    <option value="">-- Třída --</option>
+                                    {Object.values(PlayerClass).map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <select 
+                                    value={classPriceMultiplier}
+                                    onChange={(e) => setClassPriceMultiplier(parseFloat(e.target.value))}
+                                    className="flex-1 bg-black border border-zinc-600 text-white text-xs font-mono p-1.5 rounded outline-none"
+                                >
+                                    <option value={0.5}>-50% (Sleva)</option>
+                                    <option value={0.8}>-20% (Sleva)</option>
+                                    <option value={1.2}>+20% (Dražší)</option>
+                                    <option value={1.5}>+50% (Dražší)</option>
+                                </select>
+                                <button type="button" onClick={addClassModifier} className="bg-indigo-600 hover:bg-indigo-500 text-white px-2 rounded">
+                                    <Plus className="w-3 h-3" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-1">
+                                {event.marketConfig.classModifiers?.map((mod, idx) => (
+                                    <div key={idx} className="flex justify-between items-center bg-indigo-900/20 px-2 py-1 rounded text-[10px] text-zinc-300 border border-indigo-500/10">
+                                        <span>{mod.playerClass}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={mod.priceMultiplier < 1 ? 'text-green-400' : 'text-red-400'}>
+                                                {mod.priceMultiplier < 1 ? `SLEVA ${Math.round((1-mod.priceMultiplier)*100)}%` : `PŘIRÁŽKA ${Math.round((mod.priceMultiplier-1)*100)}%`}
+                                            </span>
+                                            <button onClick={() => removeClassModifier(idx)} className="text-zinc-500 hover:text-white"><X className="w-3 h-3"/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 3. Recycling Configuration */}
+                        <div className="bg-black/40 p-3 rounded border border-orange-500/20">
+                            <label className="text-[8px] text-orange-400 uppercase font-bold tracking-widest mb-2 flex items-center gap-1"><Recycle className="w-3 h-3"/> Výstup Recyklace</label>
+                            
+                            <div className="flex gap-2 mb-2">
+                                <select 
+                                    value={selectedRecycleRes}
+                                    onChange={(e) => setSelectedRecycleRes(e.target.value)}
+                                    className="flex-[2] bg-black border border-zinc-600 text-white text-xs font-mono p-1.5 rounded outline-none focus:border-orange-500"
+                                >
+                                    <option value="">-- Surovina --</option>
+                                    {availableResources.map(res => (
+                                        <option key={res.id} value={res.resourceConfig?.resourceName || res.title}>
+                                            {res.resourceConfig?.resourceName || res.title}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input 
+                                    type="number"
+                                    value={recycleAmount}
+                                    onChange={(e) => setRecycleAmount(parseInt(e.target.value))}
+                                    className="w-12 bg-black border border-zinc-600 text-white text-xs text-center font-mono p-1.5 rounded outline-none focus:border-orange-500"
+                                />
+                                <button type="button" onClick={addRecycleOutput} className="bg-orange-600 hover:bg-orange-500 text-white px-2 rounded">
+                                    <Plus className="w-3 h-3" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-1">
+                                {event.marketConfig.recyclingOutput?.map((out, idx) => (
+                                    <div key={idx} className="flex justify-between items-center bg-orange-900/20 px-2 py-1 rounded text-[10px] text-zinc-300 border border-orange-500/10">
+                                        <span className="flex items-center gap-1"><Hammer className="w-3 h-3 text-orange-500"/> {out.resourceName}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono font-bold text-white">x{out.amount}</span>
+                                            <button onClick={() => removeRecycleOutput(idx)} className="text-zinc-500 hover:text-white"><X className="w-3 h-3"/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                    </div>
+                )}
             </div>
 
             {/* Resource Configuration - IS IT A RESOURCE? */}

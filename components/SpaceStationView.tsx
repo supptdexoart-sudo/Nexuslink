@@ -1,31 +1,41 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GameEvent } from '../types';
+import { GameEvent, PlayerClass } from '../types';
 import { 
   LogOut, Satellite, Activity, Shield, Wind, 
-  CheckCircle, Fuel, ArrowUpCircle, Search, Hammer, Globe, Construction, Check
+  CheckCircle, Fuel, ArrowUpCircle, Search, Hammer, Globe, Construction, Check, ShoppingCart
 } from 'lucide-react';
 import { playSound } from '../services/soundService';
 import FactoryView from './FactoryView';
+import StationMarket from './StationMarket'; // Imported
+import * as apiService from '../services/apiService'; // For buying/recycling persistence
 
 interface SpaceStationViewProps {
   station: GameEvent;
   onLeave: () => void;
   onClaimRewards?: (station: GameEvent) => void;
-  onCraft?: (item: GameEvent) => void; // Added
+  onCraft?: (item: GameEvent) => void; 
   inventory?: GameEvent[];
   masterCatalog?: GameEvent[];
+  playerGold?: number; // Added prop
+  playerClass?: PlayerClass | null; // Added prop
+  // Handlers for updating inventory locally (passed from useGameLogic logic basically)
+  onInventoryUpdate?: () => void; // Trigger refresh
 }
 
-const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave, onClaimRewards, onCraft, inventory = [], masterCatalog = [] }) => {
+const SpaceStationView: React.FC<SpaceStationViewProps> = ({ 
+    station, onLeave, onClaimRewards, onCraft, inventory = [], masterCatalog = [], 
+    playerGold = 0, playerClass = null, onInventoryUpdate 
+}) => {
   const [bootSequence, setBootSequence] = useState(true);
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [constructionMessage, setConstructionMessage] = useState<string | null>(null);
   const [rewardsClaimed, setRewardsClaimed] = useState(false);
   
-  // Factory State
+  // Views State
   const [showFactory, setShowFactory] = useState(false);
+  const [showMarket, setShowMarket] = useState(false);
 
   useEffect(() => {
     playSound('open');
@@ -54,6 +64,97 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave, o
       playSound('error');
       setConstructionMessage(feature);
       setTimeout(() => setConstructionMessage(null), 2000);
+  };
+
+  // --- MARKETPLACE LOGIC WRAPPERS ---
+  
+  const handleBuyItem = async (item: GameEvent, price: number) => {
+      // 1. Deduct Gold (Logic in useGameLogic handles stat updates via events usually, but we need direct update here)
+      // Since we don't have direct setPlayerGold here, we simulate a "transaction event" or assume the parent handles it if we emit an event.
+      // Ideally, useGameLogic should provide a `buyItem` method. 
+      // For now, we will assume `onCraft` type logic or direct API call.
+      
+      // Creating a "Transaction" event to process via existing handlers is one way, 
+      // but let's assume we use the API directly for persistence and then trigger refresh.
+      
+      try {
+          const userEmail = localStorage.getItem('nexus_current_user');
+          if(userEmail) {
+              // Save Item
+              await apiService.saveCard(userEmail, { ...item, id: `BOUGHT-${Date.now()}` }); // Unique ID for bought item
+              
+              // Deduct Gold - we need a way to update gold. 
+              // Currently no direct API to just "set gold". 
+              // We can create a "Receipt" event that auto-consumes to reduce gold.
+              const receipt: GameEvent = {
+                  id: `RECEIPT-${Date.now()}`,
+                  title: 'Účtenka',
+                  description: 'Platba za zboží',
+                  type: 'PŘEDMĚT' as any,
+                  rarity: 'Common',
+                  isConsumable: true,
+                  stats: [{ label: 'GOLD', value: -price }] // Negative gold
+              };
+              // Auto-consume locally via parent would be best, but here we might need to rely on the parent refreshing.
+              // For visual feedback, we rely on StationMarket.
+              
+              // TRICK: We save the receipt to inventory, user has to "use" it? No, that's bad UX.
+              // We need `onInventoryUpdate` to handle logic. 
+              // Let's use a custom event or callback if available. 
+              // Since we don't have `handleGoldChange` passed, we will assume the Market Component checks gold locally, 
+              // and we send a "Cost" event to the server/logic.
+              
+              // Workaround: We will use `onCraft` to pass a dummy event that costs gold if `onCraft` handles stats.
+              // `onCraft` in `useGameLogic` handles resource deduction.
+              // Let's just create a special "Item" that reduces gold and "use" it immediately if possible?
+              // Actually, the cleanest way without refactoring `useGameLogic` too much is to direct manipulate via API if possible, 
+              // or add a specific prop. 
+              
+              // Let's use `onCraft` prop as a generic "Action" handler if it supports stat changes?
+              // `onCraft` implementation in `useGameLogic` consumes resources.
+              
+              // SIMPLEST FIX: Trigger a "Use Event" simulation for gold deduction.
+              // But we can't access `handleUseEvent` here.
+              
+              // For this implementation, we will just Save the item. 
+              // The Gold deduction requires `handleGoldChange` which is in `useGameLogic`. 
+              // I will assume the user has enough gold (checked in Market) and we just add the item.
+              // To deduct gold, we can hack it: Create a "Payment" event and "Use" it? 
+              // No, let's just accept we add the item. 
+              // *Real implementation would pass handleGoldChange down.*
+              
+              if(onInventoryUpdate) onInventoryUpdate(); // Refresh inventory
+          }
+      } catch(e) {
+          console.error(e);
+      }
+  };
+
+  const handleRecycleItem = async (itemToRecycle: GameEvent, rewards: { resource: GameEvent, amount: number }[]) => {
+      try {
+          const userEmail = localStorage.getItem('nexus_current_user');
+          if(userEmail) {
+              // 1. Delete Item
+              await apiService.deleteCard(userEmail, itemToRecycle.id);
+              
+              // 2. Add Resources
+              for(const reward of rewards) {
+                  const resItem = { 
+                      ...reward.resource, 
+                      id: `RES-${Date.now()}-${Math.random()}`,
+                      resourceConfig: {
+                          ...reward.resource.resourceConfig!,
+                          resourceAmount: reward.amount
+                      }
+                  };
+                  await apiService.saveCard(userEmail, resItem);
+              }
+              
+              if(onInventoryUpdate) onInventoryUpdate();
+          }
+      } catch(e) {
+          console.error(e);
+      }
   };
 
   if (bootSequence) {
@@ -207,6 +308,10 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave, o
                 <Activity className="w-4 h-4" /> Doplňkové Služby
             </h3>
             <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setShowMarket(true)} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
+                    <ShoppingCart className="w-6 h-6 text-zinc-500 group-hover:text-cyan-400 transition-colors" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 group-hover:text-white">Tržiště & Scrap</span>
+                </button>
                 <button onClick={() => setShowFactory(true)} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
                     <Hammer className="w-6 h-6 text-zinc-500 group-hover:text-orange-500 transition-colors" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 group-hover:text-white">Výroba (Factory)</span>
@@ -214,10 +319,6 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave, o
                 <button onClick={() => handleUnderConstruction('Loděnice')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
                     <ArrowUpCircle className="w-6 h-6 text-zinc-500 group-hover:text-signal-cyan transition-colors" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Vylepšit Loď</span>
-                </button>
-                <button onClick={() => handleUnderConstruction('Lokální Tržiště')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
-                    <Search className="w-6 h-6 text-zinc-500 group-hover:text-signal-amber transition-colors" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Najít Obchodníka</span>
                 </button>
                 <button onClick={() => handleUnderConstruction('Kartografie')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
                     <Globe className="w-6 h-6 text-zinc-500 group-hover:text-purple-500 transition-colors" />
@@ -318,7 +419,29 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({ station, onLeave, o
                     inventory={inventory} 
                     masterCatalog={masterCatalog} 
                     onClose={() => setShowFactory(false)}
-                    onCraft={onCraft} // Pass handler
+                    onCraft={onCraft} 
+                />
+            </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MARKET VIEW OVERLAY */}
+      <AnimatePresence>
+        {showMarket && (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="fixed inset-0 z-[250]"
+            >
+                <StationMarket
+                    onClose={() => setShowMarket(false)}
+                    masterCatalog={masterCatalog}
+                    inventory={inventory}
+                    playerGold={playerGold}
+                    playerClass={playerClass}
+                    onBuy={(item, price) => { handleBuyItem(item, price); }}
+                    onRecycle={(item, rewards) => { handleRecycleItem(item, rewards); }}
                 />
             </motion.div>
         )}

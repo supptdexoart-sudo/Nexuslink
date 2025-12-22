@@ -9,29 +9,26 @@ import GameSetup from './components/GameSetup';
 import Toast from './components/Toast';
 import EventCard from './components/EventCard';
 import DockingAnimation from './components/DockingAnimation';
-import SpaceStationView from './components/SpaceStationView'; // IMPORT
+import SpaceStationView from './components/SpaceStationView'; 
 import { 
   Scan, Box, Hammer, Users, Settings as SettingsIcon, 
   Sun, Moon, Heart, Zap, Coins, Shield, 
-  Wind, Loader2, AlertTriangle, Rocket, Fuel
+  Wind, Loader2, AlertTriangle, Rocket, Fuel, Database, FlaskConical
 } from 'lucide-react';
 import { playSound, vibrate } from './services/soundService';
 
-// --- DYNAMIC IMPORTS FOR PREFETCHING ---
 const inventoryImport = () => import('./components/InventoryView');
 const generatorImport = () => import('./components/Generator');
 const roomImport = () => import('./components/Room');
 const settingsImport = () => import('./components/SettingsView');
 const spaceshipImport = () => import('./components/SpaceshipView');
 
-// --- LAZY LOADED MODULES ---
 const InventoryView = lazy(inventoryImport);
 const Generator = lazy(generatorImport);
 const Room = lazy(roomImport);
 const SettingsView = lazy(settingsImport);
 const SpaceshipView = lazy(spaceshipImport);
 
-// --- ERROR BOUNDARY FOR LAZY MODULES ---
 interface ModuleErrorBoundaryProps {
   children?: ReactNode;
 }
@@ -41,10 +38,7 @@ interface ModuleErrorBoundaryState {
 }
 
 class ModuleErrorBoundary extends Component<ModuleErrorBoundaryProps, ModuleErrorBoundaryState> {
-  constructor(props: ModuleErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
+  state: ModuleErrorBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(_: Error): ModuleErrorBoundaryState { 
     return { hasError: true }; 
@@ -166,7 +160,6 @@ const App: React.FC = () => {
   return (
     <div className={`h-screen w-screen bg-black overflow-hidden flex flex-col font-sans text-white relative`}>
       
-      {/* SCREEN FLASH OVERLAY */}
       <AnimatePresence>
         {logic.screenFlash && (
           <motion.div 
@@ -177,18 +170,29 @@ const App: React.FC = () => {
               logic.screenFlash === 'red' ? 'bg-red-600/40' : 
               logic.screenFlash === 'green' ? 'bg-green-500/30' : 
               logic.screenFlash === 'blue' ? 'bg-blue-500/30' : 
-              'bg-orange-500/50' // Amber for fuel
+              'bg-orange-500/50'
             }`}
           />
         )}
       </AnimatePresence>
 
       <div className="h-28 bg-zinc-950/95 border-b border-white/10 flex flex-col z-[100] shadow-[0_5px_20px_rgba(0,0,0,0.8)]">
-        {/* Top Status Info */}
         <div className="flex items-center justify-between px-4 py-1 border-b border-white/5 bg-white/[0.01]">
             <div className="flex items-center gap-2">
                 <span className="text-[7px] font-black text-signal-cyan uppercase tracking-[0.2em] opacity-80">Nexus_OS_v1.4</span>
                 <div className={`w-1 h-1 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500 shadow-[0_0_8px_red] animate-ping'}`} />
+                
+                {/* ADMIN MODE INDICATOR */}
+                {logic.isAdmin && (
+                    <div className={`ml-2 px-2 py-0.5 rounded border-[0.5px] text-[6px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                        logic.isTestMode 
+                        ? 'border-orange-500/50 text-orange-500 bg-orange-950/30 shadow-[0_0_10px_rgba(249,115,22,0.2)]' 
+                        : 'border-purple-500/50 text-purple-400 bg-purple-950/30 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                    }`}>
+                        {logic.isTestMode ? <FlaskConical className="w-2 h-2" /> : <Database className="w-2 h-2" />}
+                        {logic.isTestMode ? 'TEST_ENV' : 'LIVE_DB'}
+                    </div>
+                )}
             </div>
             <div className="flex items-center gap-3">
                 <button onClick={handleDayNightClick} className="flex items-center gap-1.5 active:scale-95 transition-transform">
@@ -201,15 +205,12 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* Improved Stats Grid - 2 Rows for better visibility */}
         <div className="flex-1 flex flex-col gap-1 p-1 bg-black/40">
-            {/* Primary Survival Stats */}
             <div className="flex-1 grid grid-cols-3 gap-1">
                 <StatSlot icon={<Heart className="w-4 h-4" />} value={logic.playerHp} color="#ef4444" label="HP" />
                 <StatSlot icon={<Zap className="w-4 h-4" />} value={logic.playerMana} color="#00f2ff" label="MANA" />
                 <StatSlot icon={<Fuel className="w-4 h-4" />} value={logic.playerFuel} color="#f97316" label="PALIVO" />
             </div>
-            {/* Secondary/Economy Stats */}
             <div className="flex-1 grid grid-cols-3 gap-1">
                 <StatSlot icon={<Coins className="w-3 h-3" />} value={logic.playerGold} color="#fbbf24" label="GOLD" small />
                 <StatSlot icon={<Shield className="w-3 h-3" />} value={logic.playerArmor} color="#a1a1aa" label="ARMOR" small />
@@ -234,7 +235,7 @@ const App: React.FC = () => {
                     inventory={logic.inventory} loadingInventory={false} isRefreshing={logic.isRefreshing} 
                     isAdmin={logic.isAdmin} isNight={logic.isNight} adminNightOverride={logic.adminNightOverride}
                     playerClass={logic.playerClass} giftTarget={logic.giftTarget} onRefresh={logic.handleRefreshDatabase} 
-                    onItemClick={logic.handleOpenInventoryItem} 
+                    onItemClick={logic.handleOpenInventoryItem} isTestMode={logic.isTestMode} // Pass test mode prop
                   />
                 </motion.div>
               )}
@@ -242,9 +243,11 @@ const App: React.FC = () => {
               {logic.activeTab === Tab.GENERATOR && (
                 <motion.div key="generator" {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0">
                   <Generator 
-                    onSaveCard={logic.handleSaveEvent} userEmail={logic.userEmail || ''} initialData={logic.editingEvent}
+                    // CRITICAL: Generator always edits Master Catalog (isCatalogUpdate=true)
+                    onSaveCard={(e) => logic.handleSaveEvent(e, true)} 
+                    userEmail={logic.userEmail || ''} initialData={logic.editingEvent}
                     onClearData={() => logic.setEditingEvent(null)} onDelete={logic.handleDeleteEvent}
-                    masterCatalog={logic.masterCatalog} // Added prop
+                    masterCatalog={logic.masterCatalog} 
                   />
                 </motion.div>
               )}
@@ -265,6 +268,7 @@ const App: React.FC = () => {
                     onBack={() => logic.setActiveTab(Tab.SCANNER)} onLogout={logic.handleLogout}
                     soundEnabled={logic.soundEnabled} vibrationEnabled={logic.vibrationEnabled}
                     onToggleSound={logic.handleToggleSound} onToggleVibration={logic.handleToggleVibration} userEmail={logic.userEmail}
+                    isAdmin={logic.isAdmin} isTestMode={logic.isTestMode} onToggleTestMode={logic.toggleTestMode} // Pass Test Mode Toggle
                   />
                 </motion.div>
               )}
@@ -288,33 +292,35 @@ const App: React.FC = () => {
         <NavButton active={logic.activeTab === Tab.SETTINGS} onClick={() => logic.setActiveTab(Tab.SETTINGS)} icon={<SettingsIcon />} label="Sys" />
       </div>
 
-      {/* DOCKING ANIMATION LAYER */}
       <AnimatePresence>
         {logic.isDocking && (
           <DockingAnimation onComplete={logic.handleDockingComplete} />
         )}
       </AnimatePresence>
 
-      {/* SPACE STATION INTERFACE LAYER */}
       <AnimatePresence>
         {logic.activeStation && (
            <SpaceStationView 
               station={logic.activeStation} 
               onLeave={logic.handleLeaveStation}
               onClaimRewards={logic.handleClaimStationRewards}
-              inventory={logic.inventory} // Added
-              masterCatalog={logic.masterCatalog} // Added
+              inventory={logic.inventory} 
+              masterCatalog={logic.masterCatalog} 
+              onCraft={logic.handleCraftItem}
+              playerGold={logic.playerGold}
+              playerClass={logic.playerClass}
+              onInventoryUpdate={logic.handleRefreshDatabase}
            />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {/* Only show event card if we are NOT docking AND NOT in station view */}
         {logic.currentEvent && !logic.isDocking && !logic.activeStation && (
           <EventCard 
             event={logic.currentEvent} 
             onClose={logic.closeEvent} 
-            onSave={() => logic.handleSaveEvent(logic.currentEvent!)}
+            // Saving from card (Scan Result) goes to Active Backpack (Test or Master)
+            onSave={() => logic.handleSaveEvent(logic.currentEvent!, false)}
             onUse={() => logic.handleUseEvent(logic.currentEvent!)} 
             onDiscard={() => logic.handleDeleteEvent(logic.currentEvent!.id)}
             onResolveDilemma={logic.handleResolveDilemma}

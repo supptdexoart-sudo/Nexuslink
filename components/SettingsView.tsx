@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Volume2, VolumeX, Vibrate, VibrateOff, LogOut, ChevronRight, ArrowLeft, Shield, Maximize, Minimize } from 'lucide-react';
+import { BookOpen, Volume2, VolumeX, Vibrate, VibrateOff, LogOut, ChevronRight, ArrowLeft, Shield, Maximize, Minimize, FlaskConical, Database } from 'lucide-react';
 import ManualView from './ManualView';
 
 interface SettingsViewProps {
@@ -12,10 +12,14 @@ interface SettingsViewProps {
   onToggleSound: () => void;
   onToggleVibration: () => void;
   userEmail: string | null;
+  isAdmin?: boolean;
+  isTestMode?: boolean;
+  onToggleTestMode?: () => void;
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ 
-  onBack, onLogout, soundEnabled, vibrationEnabled, onToggleSound, onToggleVibration, userEmail 
+  onBack, onLogout, soundEnabled, vibrationEnabled, onToggleSound, onToggleVibration, userEmail,
+  isAdmin, isTestMode, onToggleTestMode
 }) => {
   const [showManual, setShowManual] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -68,6 +72,26 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* ADMIN TEST MODE SWITCH */}
+        {isAdmin && onToggleTestMode && (
+            <button 
+                onClick={onToggleTestMode}
+                className={`w-full p-4 tactical-card border-2 flex items-center justify-between group active:scale-[0.98] transition-all ${isTestMode ? 'border-orange-500 bg-orange-950/20' : 'border-purple-500 bg-purple-900/20'}`}
+            >
+                <div className="flex items-center gap-4">
+                    {isTestMode ? <FlaskConical className="w-6 h-6 text-orange-500 animate-pulse" /> : <Database className="w-6 h-6 text-purple-500" />}
+                    <div className="text-left">
+                        <span className={`text-sm font-black uppercase tracking-wider block ${isTestMode ? 'text-orange-500' : 'text-purple-500'}`}>
+                            {isTestMode ? 'Režim: TESTOVACÍ BATOH' : 'Režim: MASTER DATABÁZE'}
+                        </span>
+                        <span className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight">
+                            {isTestMode ? 'Používáte virtuální testovací účet' : 'Používáte hlavní účet (Live)'}
+                        </span>
+                    </div>
+                </div>
+            </button>
+        )}
 
         <button 
           onClick={() => setShowManual(true)}

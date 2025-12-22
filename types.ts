@@ -121,6 +121,26 @@ export interface ClassVariant {
     bonusStats?: Stat[];
 }
 
+// --- NEW MARKET & RECYCLING INTERFACES ---
+
+export interface RecycleOutput {
+    resourceName: string; // ID suroviny (např. "Kovový šrot")
+    amount: number;
+}
+
+export interface ClassMarketModifier {
+    playerClass: PlayerClass;
+    priceMultiplier: number; // 0.8 = 20% sleva, 1.2 = 20% přirážka
+}
+
+export interface MarketConfig {
+    enabled: boolean;
+    marketPrice?: number; // Override standardní ceny
+    saleChance: number; // 0-100% šance, že bude v akci
+    classModifiers: ClassMarketModifier[];
+    recyclingOutput: RecycleOutput[];
+}
+
 export interface GameEvent {
   id: string;
   title: string;
@@ -153,6 +173,8 @@ export interface GameEvent {
   
   resourceConfig?: ResourceConfig; // Konfigurace surovin
   craftingRecipe?: CraftingRecipe; // Konfigurace výroby
+  
+  marketConfig?: MarketConfig; // Konfigurace tržiště a recyklace
 
   timeVariant?: TimeVariant; 
   classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 

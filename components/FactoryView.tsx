@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameEvent } from '../types';
 import { Hammer, X, Database, Box, Cog, Wrench, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
@@ -23,14 +23,27 @@ const FactoryView: React.FC<FactoryViewProps> = ({ inventory, masterCatalog, onC
 
     const [selectedBlueprint, setSelectedBlueprint] = useState<GameEvent | null>(null);
     const [isCrafting, setIsCrafting] = useState(false);
+    
+    // Timer States
+    const [progress, setProgress] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(0);
+    const timerRef = useRef<any>(null);
+
+    // Clean up timer on unmount
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
 
     const handleSelectBlueprint = (item: GameEvent) => {
+        if (isCrafting) return; // Prevent changing selection during craft
         playSound('click');
         setSelectedBlueprint(item);
+        setProgress(0);
+        setTimeLeft(0);
     };
 
-    // Calculate total amount of a specific resource in player inventory
-    // Aggregates amounts from multiple stacks if present
     const getPlayerResourceAmount = (resourceName: string) => {
         return playerResources.reduce((total, item) => {
             if (item.resourceConfig?.resourceName === resourceName) {
@@ -41,7 +54,7 @@ const FactoryView: React.FC<FactoryViewProps> = ({ inventory, masterCatalog, onC
     };
 
     const checkCanCraft = (blueprint: GameEvent) => {
-        if (!blueprint.craftingRecipe?.requiredResources) return true; // No requirements = free?
+        if (!blueprint.craftingRecipe?.requiredResources) return true;
         
         return blueprint.craftingRecipe.requiredResources.every(req => {
             const playerHas = getPlayerResourceAmount(req.resourceName);
@@ -57,16 +70,45 @@ const FactoryView: React.FC<FactoryViewProps> = ({ inventory, masterCatalog, onC
         }
 
         setIsCrafting(true);
-        playSound('scan'); // Construction sound start
+        playSound('scan'); 
         vibrate([50, 100, 50]);
 
-        // Simulate short delay for effect (can be longer based on recipe time, but for UX kept short)
-        setTimeout(() => {
-            onCraft(selectedBlueprint);
-            setIsCrafting(false);
-            setSelectedBlueprint(null); // Close modal on success
-            playSound('success');
-        }, 1500);
+        // 1. Get Crafting Time from Recipe (Default to 10s if missing, but should be there)
+        const durationSeconds = selectedBlueprint.craftingRecipe?.craftingTimeSeconds || 10;
+        const totalMs = durationSeconds * 1000;
+        const intervalMs = 50; // Update freq
+        
+        let elapsed = 0;
+        setTimeLeft(durationSeconds);
+        setProgress(0);
+
+        timerRef.current = setInterval(() => {
+            elapsed += intervalMs;
+            const newProgress = Math.min(100, (elapsed / totalMs) * 100);
+            const newTimeLeft = Math.max(0, durationSeconds - (elapsed / 1000));
+            
+            setProgress(newProgress);
+            setTimeLeft(newTimeLeft);
+
+            if (elapsed >= totalMs) {
+                clearInterval(timerRef.current);
+                finishCrafting();
+            }
+        }, intervalMs);
+    };
+
+    const finishCrafting = () => {
+        if (!selectedBlueprint || !onCraft) return;
+        
+        onCraft(selectedBlueprint);
+        playSound('success');
+        vibrate([50, 50, 50]);
+        
+        // Reset States
+        setIsCrafting(false);
+        setProgress(0);
+        setTimeLeft(0);
+        setSelectedBlueprint(null); // Close modal on success
     };
 
     return (
@@ -88,7 +130,7 @@ const FactoryView: React.FC<FactoryViewProps> = ({ inventory, masterCatalog, onC
                     </div>
                 </div>
                 
-                <button onClick={onClose} className="p-2 relative z-10 bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors">
+                <button onClick={onClose} disabled={isCrafting} className={`p-2 relative z-10 bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors ${isCrafting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <X className="w-6 h-6 text-zinc-400" />
                 </button>
             </header>
@@ -176,22 +218,31 @@ const FactoryView: React.FC<FactoryViewProps> = ({ inventory, masterCatalog, onC
                             exit={{ scale: 0.9, y: 20 }}
                             className="bg-zinc-900 border border-orange-500/50 w-full max-w-sm rounded-2xl p-6 relative shadow-[0_0_50px_rgba(249,115,22,0.15)] flex flex-col max-h-[90vh]"
                         >
-                            <button onClick={() => setSelectedBlueprint(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
+                            {!isCrafting && (
+                                <button onClick={() => setSelectedBlueprint(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
+                            )}
                             
                             <div className="flex flex-col items-center text-center mb-6">
-                                <div className="w-20 h-20 bg-black border-2 border-orange-500/30 rounded-xl flex items-center justify-center mb-4 relative">
-                                    <Wrench className={`w-8 h-8 text-orange-500 ${isCrafting ? 'animate-spin-slow' : ''}`} />
-                                    {isCrafting && <div className="absolute inset-0 border-2 border-orange-500 rounded-xl animate-ping" />}
+                                <div className="w-20 h-20 bg-black border-2 border-orange-500/30 rounded-xl flex items-center justify-center mb-4 relative overflow-hidden">
+                                    {isCrafting ? (
+                                        <>
+                                            <div className="absolute inset-0 bg-orange-500/20 z-0" style={{ height: `${progress}%`, bottom: 0, top: 'auto', transition: 'height 0.1s linear' }}></div>
+                                            <span className="relative z-10 text-xl font-black text-white">{timeLeft.toFixed(1)}s</span>
+                                        </>
+                                    ) : (
+                                        <Wrench className={`w-8 h-8 text-orange-500`} />
+                                    )}
                                 </div>
                                 <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-1">{selectedBlueprint.title}</h2>
-                                <p className="text-xs text-zinc-400 font-mono line-clamp-2">{selectedBlueprint.description}</p>
                                 
-                                <div className="mt-3 flex items-center gap-2 text-orange-400 bg-orange-950/20 px-3 py-1 rounded-full border border-orange-500/20">
-                                    <Clock className="w-3 h-3" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider">
-                                        Čas výroby: {selectedBlueprint.craftingRecipe?.craftingTimeSeconds || 60}s
-                                    </span>
-                                </div>
+                                {!isCrafting && (
+                                    <div className="mt-3 flex items-center gap-2 text-orange-400 bg-orange-950/20 px-3 py-1 rounded-full border border-orange-500/20">
+                                        <Clock className="w-3 h-3" />
+                                        <span className="text-[10px] font-bold uppercase tracking-wider">
+                                            Čas výroby: {selectedBlueprint.craftingRecipe?.craftingTimeSeconds || 10}s
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="p-4 bg-black/40 rounded-xl border border-zinc-800 mb-6 flex-1 overflow-y-auto">
@@ -217,19 +268,28 @@ const FactoryView: React.FC<FactoryViewProps> = ({ inventory, masterCatalog, onC
                                 </div>
                             </div>
 
-                            <button 
-                                onClick={handleCraftClick}
-                                disabled={isCrafting || !checkCanCraft(selectedBlueprint)}
-                                className={`w-full py-4 font-black uppercase text-xs tracking-[0.2em] rounded-xl flex items-center justify-center gap-2 transition-all ${
-                                    isCrafting 
-                                    ? 'bg-orange-500/20 text-orange-500 border border-orange-500/50 cursor-wait'
-                                    : checkCanCraft(selectedBlueprint) 
-                                        ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
-                                        : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700'
-                                }`}
-                            >
-                                {isCrafting ? 'VÝROBA PROBÍHÁ...' : checkCanCraft(selectedBlueprint) ? 'VYROBIT PŘEDMĚT' : 'NEDOSTATEK SUROVIN'}
-                            </button>
+                            {isCrafting ? (
+                                <div className="w-full bg-zinc-800 rounded-full h-4 overflow-hidden border border-zinc-700 relative">
+                                    <motion.div 
+                                        className="h-full bg-orange-500"
+                                        style={{ width: `${progress}%` }}
+                                        transition={{ duration: 0.1, ease: "linear" }}
+                                    />
+                                    <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black uppercase text-white drop-shadow-md">Fabrikace...</span>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={handleCraftClick}
+                                    disabled={!checkCanCraft(selectedBlueprint)}
+                                    className={`w-full py-4 font-black uppercase text-xs tracking-[0.2em] rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                        checkCanCraft(selectedBlueprint) 
+                                            ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
+                                            : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700'
+                                    }`}
+                                >
+                                    {checkCanCraft(selectedBlueprint) ? 'VYROBIT PŘEDMĚT' : 'NEDOSTATEK SUROVIN'}
+                                </button>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}

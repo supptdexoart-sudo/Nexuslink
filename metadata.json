@@ -1,5 +1,5 @@
 {
-  "name": "Nexus Game CompanionV6",
+  "name": "Nexus Game CompanionV7",
   "description": "A revolutionary board game companion app that uses AI to interpret scanned barcodes into dynamic game events, items, and lore.",
   "requestFramePermissions": [
     "camera"
