@@ -596,38 +596,6 @@ export const useGameLogic = () => {
     vibrate(50);
     playSound('scan');
     
-    // --- PLANET SCANNING LOGIC START ---
-    // Check if this code corresponds to a planet quest in user's inventory
-    const planetQuest = inventory.find(i => i.title === code || (masterCatalog.find(mc => mc.id.toLowerCase() === code.toLowerCase())?.title === i.title && i.type === GameEventType.PLANET));
-    
-    // Better logic: Match by original title or ID if available
-    // Since quest ID is different, we must match against the Master Catalog to see if `code` is a planet ID
-    const masterPlanet = masterCatalog.find(mc => mc.id.toLowerCase() === code.toLowerCase() && mc.type === GameEventType.PLANET);
-    
-    if (masterPlanet) {
-        // Player scanned a planet card. Do they have the quest?
-        const activeQuest = inventory.find(i => i.title === masterPlanet.title && i.type === GameEventType.PLANET);
-        
-        if (activeQuest) {
-            // YES: Open Spaceship View
-            setIsAIThinking(false);
-            setActiveTab(Tab.SPACESHIP);
-            addToLog(`Cíl zaměřen: ${activeQuest.title}`);
-            playSound('success');
-            // We can't easily auto-select inside SpaceshipView without context, 
-            // but we could store a "highlightedPlanet" state if we wanted.
-            // For now, redirecting to ship is enough as per request.
-            return;
-        } else {
-            // NO: Show Unknown Signal error
-            setIsAIThinking(false);
-            setNotification({ id: 'unknown-planet', type: 'error', message: 'Neznámý signál. Stáhněte souřadnice na stanici.' });
-            playSound('error');
-            return;
-        }
-    }
-    // --- PLANET SCANNING LOGIC END ---
-
     // Check Local Inventory first (Active Context)
     const localItem = inventory.find(i => i.id.toLowerCase() === code.toLowerCase());
     if (localItem) { 
