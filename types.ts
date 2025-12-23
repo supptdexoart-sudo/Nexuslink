@@ -6,7 +6,8 @@ export enum GameEventType {
   MERCHANT = 'OBCHODNÍK',
   DILEMA = 'DILEMA',
   BOSS = 'BOSS',
-  SPACE_STATION = 'VESMÍRNÁ_STANICE'
+  SPACE_STATION = 'VESMÍRNÁ_STANICE',
+  PLANET = 'PLANETA'
 }
 
 export enum PlayerClass {
@@ -121,7 +122,25 @@ export interface ClassVariant {
     bonusStats?: Stat[];
 }
 
-// --- NEW MARKET & RECYCLING INTERFACES ---
+// --- PLANET CONFIG ---
+export interface PlanetLayer {
+    requiredProgress: number; // e.g., 33, 66, 100
+    logText: string; // "Senzory detekují atmosféru..."
+}
+
+export interface PlanetConfig {
+    realName: string; // "Kepler-186f" (Viditelné až po 100%)
+    unknownName: string; // "Anomálie #8932" (Viditelné na začátku)
+    planetType: 'HABITABLE' | 'BARREN' | 'ANOMALY' | 'COLONY';
+    scanCost: number; // Cena za sken (Palivo/Energie)
+    scanProgressPerAction: number; // Kolik % přidá jeden sken (např. 10 nebo 34)
+    layers: PlanetLayer[];
+    finalReward?: {
+        gold: number;
+        xp: number;
+        itemRewardId?: string;
+    };
+}
 
 export interface RecycleOutput {
     resourceName: string; // ID suroviny (např. "Kovový šrot")
@@ -175,6 +194,9 @@ export interface GameEvent {
   craftingRecipe?: CraftingRecipe; // Konfigurace výroby
   
   marketConfig?: MarketConfig; // Konfigurace tržiště a recyklace
+  
+  planetConfig?: PlanetConfig; // Konfigurace planety
+  discoveryProgress?: number; // Uloženo u uživatele (0-100)
 
   timeVariant?: TimeVariant; 
   classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 

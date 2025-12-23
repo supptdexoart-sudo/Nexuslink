@@ -275,7 +275,7 @@ const App: React.FC = () => {
 
               {logic.activeTab === Tab.SPACESHIP && (
                 <motion.div key="spaceship" {...({ initial: { opacity: 0 }, animate: { opacity: 1, exit: { opacity: 0 } } } as any)} className="absolute inset-0">
-                  <SpaceshipView playerFuel={logic.playerFuel} inventory={logic.inventory} />
+                  <SpaceshipView playerFuel={logic.playerFuel} />
                 </motion.div>
               )}
             </AnimatePresence>

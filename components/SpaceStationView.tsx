@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GameEvent, PlayerClass } from '../types';
+import { GameEvent, PlayerClass, GameEventType } from '../types';
 import { 
   LogOut, Satellite, Activity, Shield, Wind, 
-  CheckCircle, Fuel, ArrowUpCircle, Search, Hammer, Globe, Construction, Check, ShoppingCart
+  CheckCircle, Fuel, ArrowUpCircle, Hammer, Globe, Construction, Check, ShoppingCart, Crosshair
 } from 'lucide-react';
 import { playSound } from '../services/soundService';
 import FactoryView from './FactoryView';
@@ -22,11 +22,17 @@ interface SpaceStationViewProps {
   playerClass?: PlayerClass | null; // Added prop
   // Handlers for updating inventory locally (passed from useGameLogic logic basically)
   onInventoryUpdate?: () => void; // Trigger refresh
+  onGoldChange?: (amount: number) => void; // Added for deducting gold
+  isAdmin?: boolean;
+  isTestMode?: boolean;
 }
+
+const TEST_ACCOUNT_EMAIL = 'admin_test_vault@nexus.local';
 
 const SpaceStationView: React.FC<SpaceStationViewProps> = ({ 
     station, onLeave, onClaimRewards, onCraft, inventory = [], masterCatalog = [], 
-    playerGold = 0, playerClass = null, onInventoryUpdate 
+    playerGold = 0, playerClass = null, onInventoryUpdate, onGoldChange,
+    isAdmin = false, isTestMode = false
 }) => {
   const [bootSequence, setBootSequence] = useState(true);
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
@@ -36,6 +42,7 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
   // Views State
   const [showFactory, setShowFactory] = useState(false);
   const [showMarket, setShowMarket] = useState(false);
+  const [showPlanetList, setShowPlanetList] = useState(false);
 
   useEffect(() => {
     playSound('open');
@@ -66,64 +73,32 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
       setTimeout(() => setConstructionMessage(null), 2000);
   };
 
+  // Helper to determine which email bucket to use
+  const getTargetEmail = () => {
+      if (isAdmin && isTestMode) {
+          return TEST_ACCOUNT_EMAIL;
+      }
+      return localStorage.getItem('nexus_current_user');
+  };
+
   // --- MARKETPLACE LOGIC WRAPPERS ---
   
   const handleBuyItem = async (item: GameEvent, price: number) => {
-      // 1. Deduct Gold (Logic in useGameLogic handles stat updates via events usually, but we need direct update here)
-      // Since we don't have direct setPlayerGold here, we simulate a "transaction event" or assume the parent handles it if we emit an event.
-      // Ideally, useGameLogic should provide a `buyItem` method. 
-      // For now, we will assume `onCraft` type logic or direct API call.
-      
-      // Creating a "Transaction" event to process via existing handlers is one way, 
-      // but let's assume we use the API directly for persistence and then trigger refresh.
-      
       try {
-          const userEmail = localStorage.getItem('nexus_current_user');
-          if(userEmail) {
-              // Save Item
-              await apiService.saveCard(userEmail, { ...item, id: `BOUGHT-${Date.now()}` }); // Unique ID for bought item
+          const targetEmail = getTargetEmail();
+          if(targetEmail) {
+              console.log(`[MARKET] Buying ${item.title} for ${price} gold. Target: ${targetEmail}`);
+
+              // 1. Deduct Gold (Update global state)
+              if (onGoldChange) {
+                  onGoldChange(-Math.abs(price)); 
+              }
+
+              // 2. Save Item to correct inventory (Test or Live)
+              await apiService.saveCard(targetEmail, { ...item, id: `BOUGHT-${Date.now()}` }); 
               
-              // Deduct Gold - we need a way to update gold. 
-              // Currently no direct API to just "set gold". 
-              // We can create a "Receipt" event that auto-consumes to reduce gold.
-              const receipt: GameEvent = {
-                  id: `RECEIPT-${Date.now()}`,
-                  title: 'Účtenka',
-                  description: 'Platba za zboží',
-                  type: 'PŘEDMĚT' as any,
-                  rarity: 'Common',
-                  isConsumable: true,
-                  stats: [{ label: 'GOLD', value: -price }] // Negative gold
-              };
-              // Auto-consume locally via parent would be best, but here we might need to rely on the parent refreshing.
-              // For visual feedback, we rely on StationMarket.
-              
-              // TRICK: We save the receipt to inventory, user has to "use" it? No, that's bad UX.
-              // We need `onInventoryUpdate` to handle logic. 
-              // Let's use a custom event or callback if available. 
-              // Since we don't have `handleGoldChange` passed, we will assume the Market Component checks gold locally, 
-              // and we send a "Cost" event to the server/logic.
-              
-              // Workaround: We will use `onCraft` to pass a dummy event that costs gold if `onCraft` handles stats.
-              // `onCraft` in `useGameLogic` handles resource deduction.
-              // Let's just create a special "Item" that reduces gold and "use" it immediately if possible?
-              // Actually, the cleanest way without refactoring `useGameLogic` too much is to direct manipulate via API if possible, 
-              // or add a specific prop. 
-              
-              // Let's use `onCraft` prop as a generic "Action" handler if it supports stat changes?
-              // `onCraft` implementation in `useGameLogic` consumes resources.
-              
-              // SIMPLEST FIX: Trigger a "Use Event" simulation for gold deduction.
-              // But we can't access `handleUseEvent` here.
-              
-              // For this implementation, we will just Save the item. 
-              // The Gold deduction requires `handleGoldChange` which is in `useGameLogic`. 
-              // I will assume the user has enough gold (checked in Market) and we just add the item.
-              // To deduct gold, we can hack it: Create a "Payment" event and "Use" it? 
-              // No, let's just accept we add the item. 
-              // *Real implementation would pass handleGoldChange down.*
-              
-              if(onInventoryUpdate) onInventoryUpdate(); // Refresh inventory
+              // 3. Refresh Inventory UI
+              if(onInventoryUpdate) onInventoryUpdate(); 
           }
       } catch(e) {
           console.error(e);
@@ -132,12 +107,12 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
 
   const handleRecycleItem = async (itemToRecycle: GameEvent, rewards: { resource: GameEvent, amount: number }[]) => {
       try {
-          const userEmail = localStorage.getItem('nexus_current_user');
-          if(userEmail) {
-              // 1. Delete Item
-              await apiService.deleteCard(userEmail, itemToRecycle.id);
+          const targetEmail = getTargetEmail();
+          if(targetEmail) {
+              // 1. Delete Item from correct inventory
+              await apiService.deleteCard(targetEmail, itemToRecycle.id);
               
-              // 2. Add Resources
+              // 2. Add Resources to correct inventory
               for(const reward of rewards) {
                   const resItem = { 
                       ...reward.resource, 
@@ -147,7 +122,7 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
                           resourceAmount: reward.amount
                       }
                   };
-                  await apiService.saveCard(userEmail, resItem);
+                  await apiService.saveCard(targetEmail, resItem);
               }
               
               if(onInventoryUpdate) onInventoryUpdate();
@@ -156,6 +131,37 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
           console.error(e);
       }
   };
+
+  // --- PLANET LOGIC ---
+  const handleAcceptPlanetQuest = async (planet: GameEvent) => {
+      try {
+          const targetEmail = getTargetEmail();
+          if(targetEmail) {
+              // Check if already active
+              if (inventory.some(i => i.title === planet.title && i.type === GameEventType.PLANET)) {
+                  setConstructionMessage("Mise již aktivní");
+                  return;
+              }
+
+              // Create fresh copy with 0 progress
+              const questPlanet: GameEvent = {
+                  ...planet,
+                  id: `QUEST-${Date.now()}`, // Unique ID in inventory
+                  discoveryProgress: 0
+              };
+
+              await apiService.saveCard(targetEmail, questPlanet);
+              if(onInventoryUpdate) onInventoryUpdate();
+              playSound('success');
+              setShowPlanetList(false); // Close overlay
+          }
+      } catch(e) {
+          console.error(e);
+      }
+  };
+
+  // Filter planets from Master Catalog
+  const availablePlanets = masterCatalog.filter(i => i.type === GameEventType.PLANET);
 
   if (bootSequence) {
     return (
@@ -206,6 +212,11 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
             </div>
         </div>
         <div className="flex items-center gap-4">
+             {isAdmin && isTestMode && (
+                 <div className="px-3 py-1 bg-orange-900/30 border border-orange-500/30 rounded text-[9px] font-bold uppercase text-orange-500 animate-pulse hidden md:block">
+                     TESTOVACÍ REŽIM AKTIVNÍ
+                 </div>
+             )}
              <div className="text-right hidden md:block">
                  <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Lokální Čas</p>
                  <p className="text-sm font-mono font-bold text-zinc-300">{new Date().toLocaleTimeString()}</p>
@@ -320,9 +331,9 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
                     <ArrowUpCircle className="w-6 h-6 text-zinc-500 group-hover:text-signal-cyan transition-colors" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Vylepšit Loď</span>
                 </button>
-                <button onClick={() => handleUnderConstruction('Kartografie')} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
+                <button onClick={() => setShowPlanetList(true)} className="bg-zinc-900/50 border border-white/5 hover:bg-zinc-800 p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 group">
                     <Globe className="w-6 h-6 text-zinc-500 group-hover:text-purple-500 transition-colors" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Registr Planet</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Planetární Mise</span>
                 </button>
             </div>
         </div>
@@ -389,6 +400,41 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
         )}
       </AnimatePresence>
 
+      {/* PLANET LIST OVERLAY */}
+      <AnimatePresence>
+        {showPlanetList && (
+            <div className="fixed inset-0 z-[250] bg-black/90 backdrop-blur-sm flex flex-col p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-black text-purple-400 uppercase tracking-widest">Planetární Mise</h2>
+                    <button onClick={() => setShowPlanetList(false)} className="p-2 bg-zinc-800 rounded-full"><LogOut className="w-5 h-5"/></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto no-scrollbar space-y-3">
+                    {availablePlanets.map(planet => (
+                        <div key={planet.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex items-center gap-4">
+                            <div className="p-3 bg-purple-900/20 rounded-full border border-purple-500/20">
+                                <Globe className="w-6 h-6 text-purple-400" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="font-bold text-white uppercase tracking-wider">{planet.planetConfig?.unknownName || planet.title}</h4>
+                                <p className="text-[10px] text-zinc-500 font-mono mt-1">Cíl: 100% Průzkum</p>
+                            </div>
+                            <button 
+                                onClick={() => handleAcceptPlanetQuest(planet)}
+                                className="bg-purple-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg shadow-purple-500/20"
+                            >
+                                Přijmout
+                            </button>
+                        </div>
+                    ))}
+                    {availablePlanets.length === 0 && (
+                        <p className="text-center text-zinc-600 mt-10 uppercase font-bold text-xs">Žádné signály v dosahu.</p>
+                    )}
+                </div>
+            </div>
+        )}
+      </AnimatePresence>
+
       {/* CONSTRUCTION TOAST */}
       <AnimatePresence>
         {constructionMessage && (
@@ -400,7 +446,7 @@ const SpaceStationView: React.FC<SpaceStationViewProps> = ({
             >
                 <Construction className="w-5 h-5 text-orange-500 animate-pulse" />
                 <span className="text-xs font-bold text-orange-500 uppercase tracking-widest whitespace-nowrap">
-                    Modul {constructionMessage} ve výstavbě
+                    {constructionMessage}
                 </span>
             </motion.div>
         )}

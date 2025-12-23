@@ -1,8 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Coins, X, ShoppingCart, Recycle, Hammer, ArrowRight, Zap, AlertTriangle, Package, DollarSign } from 'lucide-react';
+import { GameEvent, PlayerClass } from '../types';
+import { 
+    Coins, X, ShoppingCart, Recycle, Hammer, 
+    Package, AlertTriangle, Search, Filter, ArrowRight,
+    Trash2, DollarSign, Activity, Zap, Shield, Heart, Swords
+} from 'lucide-react';
 import { playSound, vibrate } from '../services/soundService';
 
 interface StationMarketProps {
@@ -21,327 +25,412 @@ const StationMarket: React.FC<StationMarketProps> = ({
     const [mode, setMode] = useState<'BUY' | 'RECYCLE'>('BUY');
     const [selectedItem, setSelectedItem] = useState<GameEvent | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [filterType, setFilterType] = useState<string>('ALL');
 
-    // --- BUY LOGIC ---
-    const itemsForSale = useMemo(() => {
-        return masterCatalog.filter(item => item.marketConfig?.enabled);
+    useEffect(() => {
+        playSound('open');
+    }, []);
+
+    // --- LOGIC ---
+    
+    // 1. Calculate Sale Rolls ONCE per catalog load
+    const saleRolls = useMemo(() => {
+        const rolls: Record<string, boolean> = {};
+        masterCatalog.forEach(item => {
+            if (item.marketConfig?.saleChance) {
+                const roll = Math.random() * 100;
+                rolls[item.id] = roll <= item.marketConfig.saleChance;
+            }
+        });
+        return rolls;
     }, [masterCatalog]);
 
-    const getPriceInfo = (item: GameEvent) => {
-        const basePrice = item.marketConfig?.marketPrice ?? item.price ?? 100;
-        let finalPrice = basePrice;
-        let discountLabel = null;
-
-        // 1. Class Modifier
-        if (playerClass && item.marketConfig?.classModifiers) {
-            const mod = item.marketConfig.classModifiers.find(m => m.playerClass === playerClass);
-            if (mod) {
-                finalPrice = Math.floor(basePrice * mod.priceMultiplier);
-                if (mod.priceMultiplier < 1) discountLabel = `SLEVA TŘÍDY`;
-                else if (mod.priceMultiplier > 1) discountLabel = `PŘIRÁŽKA`;
-            }
+    const itemsForSale = useMemo(() => {
+        let items = masterCatalog.filter(item => item.marketConfig?.enabled);
+        if (filterType !== 'ALL') {
+            items = items.filter(i => i.type === filterType);
         }
+        return items;
+    }, [masterCatalog, filterType]);
 
-        // 2. Sale Chance (Random Sale Visual - purely visual based on config, or fixed if desired)
-        // Here we use the config value. If saleChance > 0, we treat it as "ON SALE" visually
-        // In a real app, you might want to salt this with the date so it stays consistent for the day.
-        const isOnSale = (item.marketConfig?.saleChance || 0) > 0;
-        
-        return { finalPrice, discountLabel, isOnSale };
-    };
-
-    const handleBuy = () => {
-        if (!selectedItem || isProcessing) return;
-        const { finalPrice } = getPriceInfo(selectedItem);
-        
-        if (playerGold < finalPrice) {
-            playSound('error');
-            vibrate(200);
-            return;
-        }
-
-        setIsProcessing(true);
-        playSound('success'); // Cash register sound
-        vibrate([50, 50]);
-
-        setTimeout(() => {
-            onBuy(selectedItem, finalPrice);
-            setIsProcessing(false);
-            setSelectedItem(null);
-        }, 1000);
-    };
-
-    // --- RECYCLE LOGIC ---
     const recyclableItems = useMemo(() => {
         return inventory.filter(item => 
             item.marketConfig?.recyclingOutput && item.marketConfig.recyclingOutput.length > 0
         );
     }, [inventory]);
 
+    const getPriceInfo = (item: GameEvent) => {
+        // 1. Base Price (Tržní hodnota z karty)
+        const standardPrice = item.price ?? 100;
+        
+        let currentPrice = standardPrice;
+        let discountLabel = null;
+
+        // 2. Sale Event Logic (Chance %)
+        const isOnSale = saleRolls[item.id] || false;
+        
+        if (isOnSale) {
+            // If sale is active, use Override Price from Market Config if set
+            if (item.marketConfig?.marketPrice && item.marketConfig.marketPrice > 0) {
+                currentPrice = item.marketConfig.marketPrice;
+            } else {
+                // Fallback: If no override set but sale triggered, give 30% off
+                currentPrice = Math.floor(standardPrice * 0.7);
+            }
+        }
+
+        // 3. Class Modifiers (Multipliers on top of current price)
+        if (playerClass && item.marketConfig?.classModifiers) {
+            const mod = item.marketConfig.classModifiers.find(m => m.playerClass === playerClass);
+            if (mod) {
+                currentPrice = Math.floor(currentPrice * mod.priceMultiplier);
+                if (mod.priceMultiplier < 1) discountLabel = `BONUS: ${playerClass}`;
+                else if (mod.priceMultiplier > 1) discountLabel = `PŘIRÁŽKA: ${playerClass}`;
+            }
+        }
+
+        // Ensure price is at least 1
+        const finalPrice = Math.max(1, currentPrice);
+
+        return { finalPrice, basePrice: standardPrice, discountLabel, isOnSale };
+    };
+
     const getRecycleRewards = (item: GameEvent) => {
         if (!item.marketConfig?.recyclingOutput) return [];
-        
         return item.marketConfig.recyclingOutput.map(out => {
-            // Find resource template in master catalog
             const resourceTemplate = masterCatalog.find(
                 i => (i.resourceConfig?.isResourceContainer && i.resourceConfig.resourceName === out.resourceName) || i.title === out.resourceName
             );
-            
             if (!resourceTemplate) return null;
-
-            return {
-                resource: resourceTemplate,
-                amount: out.amount
-            };
+            return { resource: resourceTemplate, amount: out.amount };
         }).filter((r): r is { resource: GameEvent, amount: number } => r !== null);
     };
 
-    const handleRecycleAction = () => {
+    const handleTransaction = () => {
         if (!selectedItem || isProcessing) return;
-        const rewards = getRecycleRewards(selectedItem);
-        if (rewards.length === 0) return;
-
+        
         setIsProcessing(true);
-        playSound('damage'); // Crunch sound
-        vibrate([100, 50, 100, 50, 200]);
-
-        setTimeout(() => {
-            onRecycle(selectedItem, rewards);
-            setIsProcessing(false);
-            setSelectedItem(null);
-            playSound('success'); // Result sound
-        }, 2000);
+        if (mode === 'BUY') {
+            const { finalPrice } = getPriceInfo(selectedItem);
+            if (playerGold < finalPrice) {
+                playSound('error'); setIsProcessing(false); return;
+            }
+            playSound('success'); vibrate([50, 50]);
+            setTimeout(() => {
+                onBuy(selectedItem, finalPrice);
+                setIsProcessing(false);
+                setSelectedItem(null);
+            }, 1000);
+        } else {
+            const rewards = getRecycleRewards(selectedItem);
+            playSound('damage'); vibrate([100, 50, 200]);
+            setTimeout(() => {
+                onRecycle(selectedItem, rewards);
+                setIsProcessing(false);
+                setSelectedItem(null);
+                playSound('success');
+            }, 1500);
+        }
     };
 
-    return (
-        <div className="fixed inset-0 z-[220] bg-black text-white font-sans overflow-hidden flex flex-col">
-            
-            {/* AMBIENT BACKGROUND */}
-            <div className="absolute inset-0 pointer-events-none opacity-40 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-black to-black"></div>
-            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #000 0, #000 40px, #111 40px, #111 41px)' }}></div>
+    // Helper for Stat Icons
+    const getStatIcon = (label: string) => {
+        const l = label.toUpperCase();
+        if (l.includes('HP') || l.includes('ZDRAVÍ')) return <Heart className="w-3 h-3 text-red-500" />;
+        if (l.includes('MANA') || l.includes('ENERGIE')) return <Zap className="w-3 h-3 text-blue-400" />;
+        if (l.includes('DMG') || l.includes('ÚTOK')) return <Swords className="w-3 h-3 text-orange-500" />;
+        if (l.includes('DEF') || l.includes('OBRANA')) return <Shield className="w-3 h-3 text-slate-300" />;
+        return <Activity className="w-3 h-3 text-zinc-400" />;
+    };
 
-            {/* HEADER - NEON SIGN */}
-            <div className="relative z-10 p-4 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-                <div className="flex items-center gap-4">
-                    <button onClick={onClose} className="p-2 bg-zinc-900/50 rounded-full border border-white/10 hover:bg-white/10 transition-colors">
-                        <X className="w-6 h-6 text-zinc-400" />
-                    </button>
-                    <div className="flex flex-col">
-                        <h2 className={`text-3xl font-black uppercase tracking-tighter leading-none transition-colors duration-500 ${mode === 'BUY' ? 'text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.6)]' : 'text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.6)]'}`}>
-                            {mode === 'BUY' ? 'TRŽIŠTĚ' : 'LINKA'}
-                        </h2>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className={`w-2 h-2 rounded-full animate-pulse ${mode === 'BUY' ? 'bg-cyan-500' : 'bg-orange-500'}`}></span>
-                            <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-[0.3em]">
-                                {mode === 'BUY' ? 'SEKTOR_OBCHOD' : 'RECYKLAČNÍ_PROTOKOL'}
-                            </span>
-                        </div>
+    // Color Theme: Yellow/Amber for Commerce
+    const themeColor = 'text-yellow-500';
+    const borderColor = 'border-yellow-500/30';
+    const bgColor = 'bg-yellow-950/20';
+
+    return (
+        <div className="fixed inset-0 z-[250] bg-zinc-950 text-white flex flex-col font-sans overflow-hidden">
+            
+            {/* --- HEADER --- */}
+            <header className={`bg-zinc-900 border-b ${borderColor} p-4 flex justify-between items-center relative overflow-hidden`}>
+                <div className="absolute inset-0 opacity-10 pointer-events-none" 
+                     style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 10px, #eab308 10px, #eab308 20px)' }}>
+                </div>
+                
+                <div className={`flex items-center gap-3 relative z-10 ${themeColor}`}>
+                    <div className={`p-2 ${bgColor} border ${borderColor} rounded`}>
+                        <ShoppingCart className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-black uppercase tracking-widest leading-none text-white">Obchodní Terminál</h1>
+                        <p className="text-[9px] font-mono font-bold uppercase tracking-[0.3em] text-zinc-400">SEKTOR MARKET_V2</p>
                     </div>
                 </div>
                 
-                {/* WALLET */}
-                <div className="bg-black/60 border border-yellow-500/30 px-4 py-2 rounded-xl flex items-center gap-3 shadow-[0_0_20px_rgba(234,179,8,0.1)]">
-                    <Coins className="w-5 h-5 text-yellow-500" />
-                    <span className="text-xl font-mono font-black text-yellow-500 tracking-wider">{playerGold}</span>
+                <button onClick={onClose} className="p-2 relative z-10 bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors">
+                    <X className="w-6 h-6 text-zinc-400" />
+                </button>
+            </header>
+
+            {/* --- TOP BAR (Stats & Tabs) --- */}
+            <div className="flex flex-col border-b border-zinc-800">
+                <div className="flex items-center justify-between p-4 bg-zinc-900/50">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-black border border-yellow-500/30 rounded-lg shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                        <Coins className="w-5 h-5 text-yellow-500" />
+                        <span className="text-xl font-mono font-bold text-white">{playerGold}</span>
+                    </div>
+                    
+                    <div className="flex bg-black rounded-lg p-1 border border-zinc-800">
+                        <button 
+                            onClick={() => { setMode('BUY'); playSound('click'); }}
+                            className={`px-6 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${mode === 'BUY' ? 'bg-yellow-600 text-black shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+                        >
+                            Nákup
+                        </button>
+                        <button 
+                            onClick={() => { setMode('RECYCLE'); playSound('click'); }}
+                            className={`px-6 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${mode === 'RECYCLE' ? 'bg-orange-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
+                        >
+                            Drtička
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            {/* MAIN AREA - SHELVES (BUY) or CONVEYOR (RECYCLE) */}
-            <div className="flex-1 relative overflow-y-auto no-scrollbar p-6 pb-48">
                 
+                {/* Filter Bar (Only for Buy Mode) */}
                 {mode === 'BUY' && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-12 pt-4">
-                        {itemsForSale.map((item) => {
-                            const { finalPrice, discountLabel, isOnSale } = getPriceInfo(item);
-                            const canAfford = playerGold >= finalPrice;
-
-                            return (
-                                <motion.button
-                                    key={item.id}
-                                    onClick={() => { setSelectedItem(item); playSound('click'); }}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="group relative flex flex-col items-center"
-                                >
-                                    {/* NEON "AKCE" SIGN */}
-                                    {isOnSale && (
-                                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 bg-black/80 border border-pink-500 px-2 py-0.5 rounded shadow-[0_0_10px_#ec4899] animate-pulse">
-                                            <span className="text-[10px] font-black text-pink-500 uppercase tracking-widest">AKCE!</span>
-                                        </div>
-                                    )}
-
-                                    {/* ITEM ON SHELF */}
-                                    <div className={`relative w-full aspect-square bg-zinc-900/50 rounded-xl border border-white/5 flex items-center justify-center transition-all duration-300 group-hover:-translate-y-2 ${canAfford ? 'group-hover:shadow-[0_0_30px_rgba(34,211,238,0.15)] group-hover:border-cyan-500/50' : 'opacity-60 grayscale'}`}>
-                                        <Package className={`w-16 h-16 ${canAfford ? 'text-zinc-300' : 'text-zinc-600'}`} strokeWidth={1} />
-                                        
-                                        {/* Price Tag */}
-                                        <div className={`absolute -bottom-3 right-2 px-2 py-1 bg-black border ${canAfford ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'} rounded text-xs font-mono font-bold shadow-lg flex items-center gap-1`}>
-                                            {finalPrice} <Coins className="w-3 h-3" />
-                                        </div>
-                                    </div>
-
-                                    {/* SHELF BASE */}
-                                    <div className="w-[120%] h-4 bg-gradient-to-r from-zinc-800 via-zinc-600 to-zinc-800 mt-2 rounded-sm shadow-[0_10px_20px_black] relative z-0">
-                                        <div className="absolute top-0 left-0 w-full h-[1px] bg-white/10"></div>
-                                    </div>
-
-                                    <div className="mt-3 text-center">
-                                        <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wide line-clamp-1 group-hover:text-white">{item.title}</h3>
-                                        {discountLabel && <p className="text-[9px] text-yellow-500 font-mono uppercase">{discountLabel}</p>}
-                                    </div>
-                                </motion.button>
-                            );
-                        })}
+                    <div className="flex gap-2 p-2 px-4 bg-black overflow-x-auto no-scrollbar border-b border-zinc-800">
+                        <Filter className="w-4 h-4 text-zinc-600 my-auto mr-2" />
+                        {['ALL', 'PŘEDMĚT', 'SUROVINA'].map(f => (
+                            <button
+                                key={f}
+                                onClick={() => setFilterType(f)}
+                                className={`px-3 py-1 rounded text-[10px] font-bold uppercase border transition-colors whitespace-nowrap ${filterType === f ? 'border-yellow-500 text-yellow-500 bg-yellow-950/20' : 'border-zinc-800 text-zinc-500'}`}
+                            >
+                                {f === 'ALL' ? 'Vše' : f}
+                            </button>
+                        ))}
                     </div>
                 )}
+            </div>
 
-                {mode === 'RECYCLE' && (
-                    <div className="space-y-4">
+            {/* --- MAIN CONTENT (GRID) --- */}
+            <div className="flex-1 overflow-y-auto p-4 bg-zinc-950 relative">
+                
+                {mode === 'BUY' ? (
+                    itemsForSale.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full opacity-30">
+                            <ShoppingCart className="w-16 h-16 mb-4 text-zinc-500" />
+                            <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Sklad vyprodán</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                            {itemsForSale.map(item => {
+                                const { finalPrice, basePrice, discountLabel, isOnSale } = getPriceInfo(item);
+                                const canAfford = playerGold >= finalPrice;
+                                const isDiscounted = finalPrice < basePrice;
+
+                                return (
+                                    <button 
+                                        key={item.id}
+                                        onClick={() => { setSelectedItem(item); playSound('click'); }}
+                                        className={`relative flex flex-col text-left p-3 rounded-xl border transition-all active:scale-95 group ${canAfford ? 'bg-zinc-900 border-zinc-800 hover:border-yellow-500/50' : 'bg-zinc-900/50 border-red-900/30 opacity-70'}`}
+                                    >
+                                        {isOnSale && (
+                                            <div className="absolute top-2 right-2 bg-pink-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse shadow-[0_0_10px_#db2777]">
+                                                AKCE
+                                            </div>
+                                        )}
+                                        
+                                        <div className="mb-2 p-3 bg-black rounded-lg border border-zinc-800 self-start group-hover:border-yellow-500/30 transition-colors">
+                                            <Package className={`w-6 h-6 ${canAfford ? 'text-zinc-200' : 'text-red-900'}`} />
+                                        </div>
+                                        
+                                        <div className="flex-1 w-full">
+                                            <h4 className="text-xs font-bold text-white uppercase line-clamp-1 mb-1">{item.title}</h4>
+                                            
+                                            {/* STATS DISPLAY IN GRID */}
+                                            {item.stats && item.stats.length > 0 && (
+                                                <div className="grid grid-cols-1 gap-1 mb-2">
+                                                    {item.stats.slice(0, 3).map((stat, i) => (
+                                                        <div key={i} className="flex items-center justify-between text-[9px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                                                            <span className="text-zinc-400 font-bold uppercase flex items-center gap-1">
+                                                                {getStatIcon(stat.label)} {stat.label.substring(0,3)}
+                                                            </span>
+                                                            <span className="text-white font-mono font-bold">{stat.value}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-auto pt-2 border-t border-zinc-800 w-full">
+                                            {discountLabel && <span className="text-[8px] text-green-500 font-bold uppercase block mb-1">{discountLabel}</span>}
+                                            
+                                            <div className="flex items-end justify-between">
+                                                <div className={`flex items-center gap-1 font-mono font-bold ${canAfford ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                    <span>{finalPrice}</span>
+                                                    <Coins className="w-3 h-3" />
+                                                </div>
+                                                
+                                                {/* Original Price (Crossed Out) */}
+                                                {isDiscounted && (
+                                                    <span className="text-[9px] text-zinc-600 line-through decoration-red-500 font-mono">
+                                                        {basePrice}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )
+                ) : (
+                    // RECYCLE MODE (Unchanged)
+                    <div className="space-y-3">
+                        <div className="p-3 bg-orange-900/10 border border-orange-500/20 rounded-lg flex items-center gap-3 mb-4">
+                            <Recycle className="w-5 h-5 text-orange-500" />
+                            <p className="text-[10px] text-zinc-400 font-mono leading-tight">
+                                Vložte nepotřebné předměty do drtičky a získejte suroviny pro výrobu.
+                            </p>
+                        </div>
+
                         {recyclableItems.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-zinc-600 gap-4">
-                                <Recycle className="w-16 h-16 opacity-20" />
-                                <p className="text-xs font-bold uppercase tracking-widest text-center">Žádný recyklovatelný odpad<br/>v batohu.</p>
+                            <div className="text-center py-10 opacity-30">
+                                <Search className="w-12 h-12 mx-auto mb-2" />
+                                <p className="text-xs font-bold uppercase">Žádný recyklovatelný odpad</p>
                             </div>
                         ) : (
                             recyclableItems.map(item => (
-                                <motion.button
+                                <button 
                                     key={item.id}
                                     onClick={() => { setSelectedItem(item); playSound('click'); }}
-                                    className="w-full bg-zinc-900/50 border border-white/5 hover:border-orange-500/50 p-4 rounded-xl flex items-center gap-4 group transition-all active:scale-95 text-left"
+                                    className="w-full flex items-center gap-4 p-3 bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 rounded-xl transition-all active:scale-95 group text-left"
                                 >
-                                    <div className="w-12 h-12 bg-black border border-zinc-800 rounded-lg flex items-center justify-center group-hover:border-orange-500/30">
-                                        <Package className="w-6 h-6 text-zinc-500 group-hover:text-orange-500 transition-colors" />
+                                    <div className="p-2 bg-black border border-zinc-700 rounded text-zinc-500 group-hover:text-orange-500 transition-colors">
+                                        <Package className="w-5 h-5" />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-sm font-bold text-zinc-200 uppercase tracking-wide group-hover:text-white">{item.title}</h3>
-                                        <p className="text-[10px] text-zinc-500 font-mono mt-1 line-clamp-1">{item.description}</p>
+                                        <h4 className="text-sm font-bold text-white uppercase">{item.title}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {getRecycleRewards(item).map((rew, i) => (
+                                                <span key={i} className="text-[9px] bg-orange-950/30 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20">
+                                                    +{rew.amount} {rew.resource.title}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="text-orange-500/50 group-hover:text-orange-500">
-                                        <ArrowRight className="w-5 h-5" />
-                                    </div>
-                                </motion.button>
+                                    <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-orange-500" />
+                                </button>
                             ))
                         )}
                     </div>
                 )}
-
             </div>
 
-            {/* BOTTOM DESK / COUNTER */}
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-[#1a1a1a] border-t-8 border-[#333] shadow-[0_-10px_50px_black] z-20 flex items-center justify-center px-6">
-                {/* Visual texture of the counter */}
-                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 10h10v10H10V10zM0 10h10v10H0V10z\' fill=\'%23fff\' fill-opacity=\'0.1\'/%3E%3C/svg%3E")' }}></div>
-                
-                {/* MODE SWITCHER (If no item selected) */}
-                {!selectedItem && (
-                    <div className="flex gap-4 w-full max-w-sm relative z-10 -mt-10">
-                        <button 
-                            onClick={() => { setMode('BUY'); playSound('click'); }}
-                            className={`flex-1 py-4 flex flex-col items-center justify-center gap-2 rounded-xl border-2 transition-all ${mode === 'BUY' ? 'bg-zinc-900 border-cyan-500 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)] -translate-y-2' : 'bg-black border-zinc-800 text-zinc-600 hover:border-zinc-600'}`}
-                        >
-                            <ShoppingCart className="w-6 h-6" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Nákup</span>
-                        </button>
-                        <button 
-                            onClick={() => { setMode('RECYCLE'); playSound('click'); }}
-                            className={`flex-1 py-4 flex flex-col items-center justify-center gap-2 rounded-xl border-2 transition-all ${mode === 'RECYCLE' ? 'bg-zinc-900 border-orange-500 text-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.2)] -translate-y-2' : 'bg-black border-zinc-800 text-zinc-600 hover:border-zinc-600'}`}
-                        >
-                            <Recycle className="w-6 h-6" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Drtička</span>
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* TRANSACTION OVERLAY (The "On Counter" View) */}
+            {/* --- DETAIL / CONFIRMATION MODAL --- */}
             <AnimatePresence>
                 {selectedItem && (
                     <motion.div 
-                        initial={{ y: '100%' }}
-                        animate={{ y: 0 }}
-                        exit={{ y: '100%' }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="absolute bottom-0 left-0 right-0 z-30 bg-[#111] border-t border-white/10 rounded-t-3xl p-6 shadow-2xl h-[45vh] flex flex-col"
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6"
                     >
-                        <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10">
-                            <X className="w-5 h-5 text-white" />
-                        </button>
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }} 
+                            animate={{ scale: 1, y: 0 }} 
+                            exit={{ scale: 0.9, y: 20 }}
+                            className={`bg-zinc-900 border w-full max-w-sm rounded-2xl p-6 relative shadow-2xl flex flex-col ${mode === 'BUY' ? 'border-yellow-500/50' : 'border-orange-500/50'}`}
+                        >
+                            <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
+                            
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className={`w-20 h-20 bg-black border-2 rounded-xl flex items-center justify-center mb-4 ${mode === 'BUY' ? 'border-yellow-500/30 text-yellow-500' : 'border-orange-500/30 text-orange-500'}`}>
+                                    {mode === 'BUY' ? <Package className="w-10 h-10" /> : <Trash2 className="w-10 h-10" />}
+                                </div>
+                                <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-1">{selectedItem.title}</h2>
+                                <p className="text-[10px] font-mono text-zinc-500 uppercase">{selectedItem.type}</p>
+                            </div>
 
-                        <div className="flex-1 flex flex-col items-center text-center pt-2">
-                            {isProcessing ? (
-                                <div className="flex flex-col items-center justify-center h-full gap-4">
-                                    {mode === 'BUY' ? (
-                                        <div className="relative">
-                                            <DollarSign className="w-16 h-16 text-cyan-500 animate-bounce" />
-                                            <div className="absolute inset-0 bg-cyan-500/30 blur-xl animate-pulse"></div>
-                                        </div>
-                                    ) : (
-                                        <div className="relative">
-                                            <Hammer className="w-16 h-16 text-orange-500 animate-spin-slow" />
-                                            <div className="absolute inset-0 bg-orange-500/30 blur-xl animate-pulse"></div>
+                            {/* Details based on mode */}
+                            {mode === 'BUY' ? (
+                                <div className="space-y-4">
+                                    {/* Stats Detail */}
+                                    {selectedItem.stats && selectedItem.stats.length > 0 && (
+                                        <div className="bg-white/5 p-3 rounded-lg border border-white/5 mb-2">
+                                            <p className="text-[10px] font-bold text-zinc-400 uppercase mb-2 flex items-center gap-1"><Activity className="w-3 h-3"/> Statistiky Assetu</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {selectedItem.stats.map((stat, i) => (
+                                                    <div key={i} className="flex justify-between items-center bg-black px-2 py-1 rounded">
+                                                        <span className="text-[9px] text-zinc-500 font-bold uppercase flex items-center gap-1">
+                                                            {getStatIcon(stat.label)} {stat.label}
+                                                        </span>
+                                                        <span className="text-xs font-mono font-bold text-white">{stat.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
-                                    <p className="text-xs font-mono uppercase tracking-[0.3em] font-bold animate-pulse">
-                                        {mode === 'BUY' ? 'Zpracování Platby...' : 'Probíhá Skartace...'}
-                                    </p>
+
+                                    <div className="flex justify-between items-center bg-black/40 p-4 rounded-xl border border-zinc-800">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-zinc-400 uppercase">Cena</span>
+                                            {getPriceInfo(selectedItem).finalPrice < getPriceInfo(selectedItem).basePrice && (
+                                                <span className="text-[10px] text-zinc-600 line-through decoration-red-500 font-mono">
+                                                    {getPriceInfo(selectedItem).basePrice} GOLD
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={`flex items-center gap-2 text-xl font-mono font-black ${playerGold >= getPriceInfo(selectedItem).finalPrice ? 'text-yellow-500' : 'text-red-500'}`}>
+                                            {getPriceInfo(selectedItem).finalPrice} <Coins className="w-5 h-5" />
+                                        </div>
+                                    </div>
+                                    {playerGold < getPriceInfo(selectedItem).finalPrice && (
+                                        <div className="flex items-center gap-2 text-red-500 text-[10px] font-bold uppercase justify-center bg-red-950/20 p-2 rounded">
+                                            <AlertTriangle className="w-3 h-3" /> Nedostatek prostředků
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
-                                <>
-                                    <h3 className="text-2xl font-black text-white uppercase tracking-wider mb-1">{selectedItem.title}</h3>
-                                    <p className="text-[10px] font-mono text-zinc-500 uppercase mb-6 tracking-widest">{selectedItem.rarity} • {selectedItem.type}</p>
-                                    
-                                    {mode === 'BUY' ? (
-                                        <div className="space-y-6 w-full max-w-xs">
-                                            <div className="flex justify-between items-center bg-black/40 p-4 rounded-xl border border-white/5">
-                                                <span className="text-xs font-bold text-zinc-400 uppercase">Cena</span>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-xl font-mono font-black ${playerGold >= getPriceInfo(selectedItem).finalPrice ? 'text-yellow-500' : 'text-red-500'}`}>
-                                                        {getPriceInfo(selectedItem).finalPrice}
-                                                    </span>
-                                                    <Coins className="w-5 h-5 text-yellow-500" />
-                                                </div>
-                                            </div>
-                                            
-                                            <button 
-                                                onClick={handleBuy}
-                                                disabled={playerGold < getPriceInfo(selectedItem).finalPrice}
-                                                className={`w-full py-4 font-black uppercase text-sm tracking-[0.3em] rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 ${playerGold >= getPriceInfo(selectedItem).finalPrice ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-500/20' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'}`}
-                                            >
-                                                {playerGold >= getPriceInfo(selectedItem).finalPrice ? 'KOUPIT' : 'NEDOSTATEK ZLATA'}
-                                            </button>
+                                <div className="space-y-2 mb-4">
+                                    <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-2 border-b border-orange-500/20 pb-1">Získáte suroviny:</p>
+                                    {getRecycleRewards(selectedItem).map((rew, i) => (
+                                        <div key={i} className="flex justify-between items-center bg-orange-900/10 p-2 rounded border border-orange-500/20">
+                                            <span className="text-xs text-zinc-300 font-mono">{rew.resource.title}</span>
+                                            <span className="text-sm font-black text-white">x{rew.amount}</span>
                                         </div>
-                                    ) : (
-                                        <div className="space-y-6 w-full max-w-xs">
-                                            <div className="bg-black/40 p-4 rounded-xl border border-white/5 text-left">
-                                                <p className="text-[10px] font-bold text-orange-500 uppercase mb-3 tracking-widest flex items-center gap-2">
-                                                    <Zap className="w-3 h-3" /> Výstup Recyklace
-                                                </p>
-                                                <div className="space-y-2">
-                                                    {getRecycleRewards(selectedItem).map((rew, i) => (
-                                                        <div key={i} className="flex justify-between items-center text-xs">
-                                                            <span className="text-zinc-300 font-mono">{rew.resource.title}</span>
-                                                            <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded">x{rew.amount}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="p-3 bg-red-900/10 border border-red-500/20 rounded-lg flex items-center gap-3">
-                                                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
-                                                <p className="text-[9px] text-red-400 leading-tight">VAROVÁNÍ: Předmět bude trvale zničen.</p>
-                                            </div>
-
-                                            <button 
-                                                onClick={handleRecycleAction}
-                                                className="w-full py-4 font-black uppercase text-sm tracking-[0.3em] rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 bg-orange-600 hover:bg-orange-500 text-white shadow-orange-500/20"
-                                            >
-                                                RECYKLOVAT
-                                            </button>
-                                        </div>
-                                    )}
-                                </>
+                                    ))}
+                                </div>
                             )}
-                        </div>
+
+                            {/* Action Button */}
+                            <button 
+                                onClick={handleTransaction}
+                                disabled={isProcessing || (mode === 'BUY' && playerGold < getPriceInfo(selectedItem).finalPrice)}
+                                className={`w-full py-4 mt-6 font-black uppercase text-xs tracking-[0.2em] rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                    isProcessing 
+                                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                                    : mode === 'BUY'
+                                        ? (playerGold >= getPriceInfo(selectedItem).finalPrice ? 'bg-yellow-600 hover:bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed')
+                                        : 'bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                                }`}
+                            >
+                                {isProcessing ? (
+                                    <span className="animate-pulse">Zpracování...</span>
+                                ) : mode === 'BUY' ? (
+                                    <>
+                                        {playerGold >= getPriceInfo(selectedItem).finalPrice ? 'POTVRDIT NÁKUP' : 'NEDOSTATEK KREDITŮ'}
+                                        <DollarSign className="w-4 h-4" />
+                                    </>
+                                ) : (
+                                    <>
+                                        ROZEMLÍT PŘEDMĚT <Hammer className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

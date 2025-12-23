@@ -15,6 +15,7 @@ import TrapPanel from './generator/TrapPanel';
 import EnemyLootPanel from './generator/EnemyLootPanel';
 import NightVariantPanel from './generator/NightVariantPanel';
 import SpaceStationPanel from './generator/SpaceStationPanel';
+import PlanetPanel from './generator/PlanetPanel';
 
 interface GeneratorProps {
   onSaveCard: (event: GameEvent) => void;
@@ -42,7 +43,16 @@ const initialEventState: GameEvent = {
   timeVariant: { enabled: false, nightStats: [] },
   stationConfig: { fuelReward: 50, repairAmount: 30, refillO2: true, welcomeMessage: "Vítejte na palubě." },
   resourceConfig: { isResourceContainer: false, resourceName: 'Surovina', resourceAmount: 1, customLabel: 'Surovina k Těžbě' },
-  craftingRecipe: { enabled: false, requiredResources: [], craftingTimeSeconds: 60 }
+  craftingRecipe: { enabled: false, requiredResources: [], craftingTimeSeconds: 60 },
+  planetConfig: { 
+      realName: "Planeta X", 
+      unknownName: "Neznámý Objekt", 
+      planetType: 'HABITABLE', 
+      scanCost: 10, 
+      scanProgressPerAction: 25, 
+      layers: [], 
+      finalReward: { gold: 50, xp: 100 } 
+  }
 };
 
 const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialData, onClearData, onDelete, masterCatalog = [] }) => {
@@ -69,7 +79,8 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
               enabled: initialData.craftingRecipe?.enabled ?? false,
               requiredResources: initialData.craftingRecipe?.requiredResources ?? [],
               craftingTimeSeconds: initialData.craftingRecipe?.craftingTimeSeconds ?? 60
-          }
+          },
+          planetConfig: initialData.planetConfig || initialEventState.planetConfig
       });
       setIsEditingMode(true);
     } else {
@@ -118,7 +129,8 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
           [GameEventType.DILEMA]: '9333ea', 
           [GameEventType.MERCHANT]: 'f5c518', 
           [GameEventType.ITEM]: '007aff',
-          [GameEventType.SPACE_STATION]: '22d3ee'
+          [GameEventType.SPACE_STATION]: '22d3ee',
+          [GameEventType.PLANET]: '4ade80' // Green for planets
       };
       const color = colorMap[type] || 'ffffff';
       return `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&color=${color}&bgcolor=0a0a0c&margin=20&data=${encodeURIComponent(id)}`;
@@ -250,6 +262,11 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                 {/* SPACE STATION CONFIGURATION */}
                 {newEvent.type === GameEventType.SPACE_STATION && (
                     <SpaceStationPanel event={newEvent} onUpdate={updateEvent} />
+                )}
+
+                {/* PLANET CONFIGURATION */}
+                {newEvent.type === GameEventType.PLANET && (
+                    <PlanetPanel event={newEvent} onUpdate={updateEvent} />
                 )}
 
                 {/* DILEMMA CONFIGURATION */}
