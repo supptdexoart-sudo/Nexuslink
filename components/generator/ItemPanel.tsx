@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { GameEvent, Stat, PlayerClass } from '../../types';
-import { Box, Heart, Swords, Shield, Zap, Coins, Sparkles, Wind, Trash2, Fuel, Hammer, Scroll, Plus, Clock, ShoppingCart, Recycle, Users, Tags, X } from 'lucide-react';
+import { Box, Heart, Swords, Shield, Zap, Coins, Sparkles, Wind, Trash2, Fuel, Hammer, Scroll, Plus, Clock, ShoppingCart, Recycle, Users, Tags, X, Ban } from 'lucide-react';
 
 interface ItemPanelProps {
     event: GameEvent;
@@ -144,41 +144,63 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
         { label: 'MANA', icon: Zap, color: 'text-cyan-400' },
         { label: 'PALIVO', icon: Fuel, color: 'text-orange-500' },
         { label: 'ZLATO', icon: Coins, color: 'text-yellow-500' },
-        { label: 'ŠTĚSTÍ', icon: Sparkles, color: 'text-purple-400' },
         { label: 'KYSLÍK', icon: Wind, color: 'text-cyan-400' },
     ];
 
     return (
-        <div className="space-y-6 bg-arc-panel p-5 border border-arc-border relative">
-            <div className="flex items-center gap-2 text-arc-yellow border-b border-arc-border pb-3">
+        <div className="space-y-6 bg-zinc-900/50 p-5 border border-zinc-700 relative rounded-xl">
+            <div className="flex items-center gap-2 text-yellow-500 border-b border-zinc-700 pb-3">
                 <Box className="w-5 h-5"/>
                 <h3 className="text-[10px] font-mono font-bold uppercase tracking-[0.2em]">Konfigurace_Assetu:</h3>
             </div>
 
-            {/* Consumable Checkbox */}
-            <div className="bg-black border border-arc-border/50 rounded-lg overflow-hidden transition-colors hover:border-arc-yellow">
-                <label className="flex items-center gap-4 p-4 cursor-pointer group">
-                    <div className="relative flex items-center justify-center">
-                    <input 
-                        type="checkbox" 
-                        checked={event.isConsumable} 
-                        onChange={(e) => onUpdate({ isConsumable: e.target.checked })} 
-                        className="w-6 h-6 rounded border-arc-border bg-zinc-900 text-arc-yellow focus:ring-arc-yellow accent-arc-yellow" 
-                    />
-                    </div>
-                    <div className="flex flex-col">
-                        <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${event.isConsumable ? 'text-arc-yellow' : 'text-white'}`}>
-                            Spotřebovatelný Předmět
-                        </span>
-                        <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-tight">
-                            Asset bude zničen po jednom použití
-                        </span>
-                    </div>
-                </label>
+            {/* Consumable & Sell Only Checkboxes */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-black border border-zinc-700 rounded-lg overflow-hidden transition-colors hover:border-yellow-500">
+                    <label className="flex items-center gap-4 p-4 cursor-pointer group">
+                        <div className="relative flex items-center justify-center">
+                        <input 
+                            type="checkbox" 
+                            checked={event.isConsumable} 
+                            onChange={(e) => onUpdate({ isConsumable: e.target.checked })} 
+                            className="w-6 h-6 rounded border-zinc-700 bg-zinc-900 text-yellow-500 focus:ring-yellow-500 accent-yellow-500" 
+                        />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${event.isConsumable ? 'text-yellow-500' : 'text-white'}`}>
+                                Spotřebovatelný
+                            </span>
+                            <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-tight">
+                                Zmizí po použití
+                            </span>
+                        </div>
+                    </label>
+                </div>
+
+                <div className="bg-black border border-zinc-700 rounded-lg overflow-hidden transition-colors hover:border-red-500">
+                    <label className="flex items-center gap-4 p-4 cursor-pointer group">
+                        <div className="relative flex items-center justify-center">
+                        <input 
+                            type="checkbox" 
+                            checked={event.isSellOnly} 
+                            onChange={(e) => onUpdate({ isSellOnly: e.target.checked })} 
+                            className="w-6 h-6 rounded border-zinc-700 bg-zinc-900 text-red-500 focus:ring-red-500 accent-red-500" 
+                        />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className={`text-[11px] font-black uppercase tracking-widest transition-colors flex items-center gap-2 ${event.isSellOnly ? 'text-red-500' : 'text-white'}`}>
+                                <Ban className="w-3 h-3"/> Jen pro Prodej
+                            </span>
+                            <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-tight">
+                                Nelze použít, jen prodat
+                            </span>
+                        </div>
+                    </label>
+                </div>
             </div>
 
             {/* PRICE CONFIG */}
-            <div className="bg-black border border-arc-border/50 p-4 rounded-lg">
+            <div className="bg-black border border-zinc-700 p-4 rounded-lg">
                 <div className="flex items-center gap-2 mb-2 text-yellow-500">
                     <Coins className="w-4 h-4"/>
                     <label className="text-[9px] font-bold uppercase tracking-widest">Tržní Hodnota (Cena)</label>
@@ -188,14 +210,14 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                         type="number" 
                         value={event.price || 0} 
                         onChange={(e) => onUpdate({ price: parseInt(e.target.value) })} 
-                        className="w-full bg-zinc-900 border border-zinc-700 p-3 text-white font-mono text-sm focus:border-yellow-500 outline-none" 
+                        className="w-full bg-zinc-900 border border-zinc-700 p-3 text-white font-mono text-sm focus:border-yellow-500 outline-none rounded" 
                     />
                     <span className="absolute right-3 top-3 text-[10px] text-zinc-500 font-bold">GOLD</span>
                 </div>
             </div>
 
             {/* NEW: MARKET & RECYCLING CONFIG */}
-            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.marketConfig?.enabled ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-black border-arc-border/50'}`}>
+            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.marketConfig?.enabled ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-black border-zinc-700'}`}>
                 <label className="flex items-center gap-4 p-4 cursor-pointer">
                     <input 
                         type="checkbox" 
@@ -222,7 +244,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                                     placeholder="Standardní cena (zleva)"
                                     value={event.marketConfig.marketPrice || ''} 
                                     onChange={(e) => updateMarketConfig('marketPrice', e.target.value ? parseInt(e.target.value) : undefined)} 
-                                    className="w-full bg-black border border-indigo-500/30 p-2 text-white text-xs font-mono outline-none focus:border-indigo-500"
+                                    className="w-full bg-black border border-indigo-500/30 p-2 text-white text-xs font-mono outline-none focus:border-indigo-500 rounded"
                                 />
                             </div>
                             <div>
@@ -327,7 +349,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
             </div>
 
             {/* Resource Configuration - IS IT A RESOURCE? */}
-            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.resourceConfig?.isResourceContainer ? 'bg-orange-950/20 border-orange-500/50' : 'bg-black border-arc-border/50'}`}>
+            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.resourceConfig?.isResourceContainer ? 'bg-orange-950/20 border-orange-500/50' : 'bg-black border-zinc-700'}`}>
                 <label className="flex items-center gap-4 p-4 cursor-pointer">
                     <input 
                         type="checkbox" 
@@ -351,7 +373,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                                     type="text" 
                                     value={event.resourceConfig.resourceName || ''} 
                                     onChange={(e) => updateResourceConfig('resourceName', e.target.value)} 
-                                    className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono outline-none focus:border-orange-500"
+                                    className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono outline-none focus:border-orange-500 rounded"
                                     placeholder="např. Kovový šrot"
                                 />
                             </div>
@@ -361,7 +383,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                                     type="number" 
                                     value={event.resourceConfig.resourceAmount || 1} 
                                     onChange={(e) => updateResourceConfig('resourceAmount', parseInt(e.target.value))} 
-                                    className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono text-center outline-none focus:border-orange-500"
+                                    className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono text-center outline-none focus:border-orange-500 rounded"
                                 />
                             </div>
                         </div>
@@ -371,7 +393,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                                 type="text" 
                                 value={event.resourceConfig.customLabel || ''} 
                                 onChange={(e) => updateResourceConfig('customLabel', e.target.value)} 
-                                className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono outline-none focus:border-orange-500"
+                                className="w-full bg-black border border-orange-500/30 p-2 text-white text-xs font-mono outline-none focus:border-orange-500 rounded"
                                 placeholder="Výchozí: Surovina k Těžbě"
                             />
                         </div>
@@ -380,7 +402,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
             </div>
 
             {/* CRAFTING RECIPE CONFIGURATION - IS IT CRAFTABLE? */}
-            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.craftingRecipe?.enabled ? 'bg-cyan-950/20 border-cyan-500/50' : 'bg-black border-arc-border/50'}`}>
+            <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${event.craftingRecipe?.enabled ? 'bg-cyan-950/20 border-cyan-500/50' : 'bg-black border-zinc-700'}`}>
                 <label className="flex items-center gap-4 p-4 cursor-pointer">
                     <input 
                         type="checkbox" 
@@ -408,7 +430,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                                 type="number" 
                                 value={event.craftingRecipe.craftingTimeSeconds || 60} 
                                 onChange={(e) => updateCraftingConfig('craftingTimeSeconds', parseInt(e.target.value))} 
-                                className="w-20 bg-black border border-cyan-500/30 p-2 text-white text-xs font-mono text-center outline-none focus:border-cyan-500"
+                                className="w-20 bg-black border border-cyan-500/30 p-2 text-white text-xs font-mono text-center outline-none focus:border-cyan-500 rounded"
                             />
                         </div>
 
@@ -489,7 +511,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                         key={opt.label} 
                         type="button" 
                         onClick={() => addQuickStat(opt.label)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 border border-arc-border hover:border-arc-yellow transition-all active:scale-95 bg-black`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 hover:border-yellow-500 transition-all active:scale-95 bg-black rounded`}
                         >
                             <opt.icon className={`w-3 h-3 ${opt.color}`} />
                             <span className={`text-[9px] font-bold uppercase tracking-tighter text-zinc-200`}>{opt.label}</span>
@@ -509,26 +531,26 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ event, onUpdate, masterCatalog = 
                         );
 
                         return (
-                            <div key={idx} className="flex gap-2 items-center bg-black p-2 border border-arc-border animate-in slide-in-from-left-2 duration-200">
-                                <div className={`p-2 border border-zinc-800 bg-arc-panel`}>
+                            <div key={idx} className="flex gap-2 items-center bg-black p-2 border border-zinc-700 rounded animate-in slide-in-from-left-2 duration-200">
+                                <div className={`p-2 border border-zinc-800 bg-zinc-900 rounded`}>
                                     {foundOption ? <foundOption.icon className={`w-4 h-4 ${foundOption.color}`} /> : <Sparkles className="w-4 h-4 text-zinc-400" />}
                                 </div>
                                 <input 
                                 value={stat.label} 
                                 onChange={(e) => updateStat(idx, 'label', e.target.value)} 
-                                className="w-24 bg-transparent border-none p-1 text-[10px] font-bold text-white placeholder-zinc-700 outline-none uppercase font-mono" 
+                                className="w-24 bg-zinc-900 border border-zinc-700 p-2 text-[10px] font-bold text-white placeholder-zinc-600 outline-none uppercase font-mono rounded focus:border-yellow-500" 
                                 placeholder="TAG" 
                                 />
                                 <input 
                                 value={stat.value} 
                                 onChange={(e) => updateStat(idx, 'value', e.target.value)} 
-                                className="flex-1 bg-arc-panel border border-zinc-800 px-3 py-2 text-xs text-white font-mono placeholder-zinc-700 focus:border-arc-yellow outline-none" 
+                                className="flex-1 bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white font-mono placeholder-zinc-600 focus:border-yellow-500 outline-none rounded" 
                                 placeholder="HODNOTA (+/-)" 
                                 />
                                 <button 
                                     type="button" 
                                     onClick={() => removeStat(idx)} 
-                                    className="p-2 text-zinc-400 hover:text-arc-red transition-colors"
+                                    className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>

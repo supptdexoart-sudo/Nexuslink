@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   Sun, Heart, Zap, 
   Users, ArrowLeft,
-  Activity, Coins, Shield, Star, Wind,
+  Activity, Coins, Shield, Wind,
   Smartphone, Database, Hammer, ShieldAlert
 } from 'lucide-react';
 
@@ -82,13 +83,6 @@ const ManualView: React.FC<ManualViewProps> = ({ onBack }) => {
                     <Shield className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Brnění (Armor)</span>
                 </div>
                 <p className="text-xs">Pasivní ochrana. Snižuje příchozí poškození (DMG) při neúspěšných hodech kostkou nebo útocích nepřátel.</p>
-            </div>
-
-            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                <div className="flex items-center gap-2 mb-2 text-purple-400">
-                    <Star className="w-4 h-4" /> <span className="font-black uppercase tracking-widest text-xs">Štěstí (Luck)</span>
-                </div>
-                <p className="text-xs">Ovlivňuje kritické úspěchy při skenování a šanci na vzácnější nálezy v loot boxech. Vyšší štěstí = lepší interpretace dat.</p>
             </div>
 
             <div className="bg-white/5 p-4 rounded-2xl border border-white/5">

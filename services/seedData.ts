@@ -1,3 +1,4 @@
+
 import { GameEvent, GameEventType } from "../types";
 
 // Tyto karty budou dostupné VŽDY, i bez prvního připojení k internetu.
@@ -59,6 +60,51 @@ export const NEXUS_SEED_DATA: GameEvent[] = [
         disarmClass: "Zloděj" as any,
         successMessage: "Proklouzl jsi bez škrábnutí!",
         failMessage: "Dostal jsi ránu proudem!"
+    }
+  },
+  // --- PLANETY (NAVIGAČNÍ DATA) ---
+  {
+    id: "PLANET-01",
+    title: "Nav Data: Terra Nova",
+    description: "Souřadnice k obyvatelné planetě s bujnou vegetací. Bezpečná zóna pro obchod.",
+    type: GameEventType.PLANET,
+    rarity: "Rare",
+    planetConfig: {
+        planetId: "p1",
+        landingEventType: GameEventType.MERCHANT
+    }
+  },
+  {
+    id: "PLANET-02",
+    title: "Nav Data: Kepler-186f",
+    description: "Vzdálená exoplaneta pokrytá ledem. Detekovány staré ruiny.",
+    type: GameEventType.PLANET,
+    rarity: "Epic",
+    planetConfig: {
+        planetId: "p2",
+        landingEventType: GameEventType.DILEMA
+    }
+  },
+  {
+    id: "PLANET-03",
+    title: "Nav Data: Mars Outpost",
+    description: "Vojenská základna na Marsu. Vysoké riziko konfliktu.",
+    type: GameEventType.PLANET,
+    rarity: "Rare",
+    planetConfig: {
+        planetId: "p3",
+        landingEventType: GameEventType.ENCOUNTER
+    }
+  },
+  {
+    id: "PLANET-04",
+    title: "Nav Data: Black Nebula",
+    description: "Nestabilní sektor plný anomálií. Pouze pro zkušené piloty.",
+    type: GameEventType.PLANET,
+    rarity: "Legendary",
+    planetConfig: {
+        planetId: "p4",
+        landingEventType: GameEventType.BOSS
     }
   }
 ];

@@ -16,6 +16,7 @@ import {
   Wind, Loader2, AlertTriangle, Rocket, Fuel, Database, FlaskConical
 } from 'lucide-react';
 import { playSound, vibrate } from './services/soundService';
+import { GameEventType } from './types';
 
 const inventoryImport = () => import('./components/InventoryView');
 const generatorImport = () => import('./components/Generator');
@@ -98,13 +99,15 @@ const App: React.FC = () => {
   const [bootComplete, setBootComplete] = useState(() => sessionStorage.getItem('nexus_boot_done') === 'true');
   const [batteryLevel, setBatteryLevel] = useState(0.85);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-
+  
   useEffect(() => {
     if (bootComplete && logic.userEmail && isOnline) {
       inventoryImport().catch(() => {});
       roomImport().catch(() => {});
       spaceshipImport().catch(() => {});
-      if (logic.isAdmin) generatorImport().catch(() => {});
+      if (logic.isAdmin) {
+          generatorImport().catch(() => {});
+      }
       settingsImport().catch(() => {});
     }
   }, [bootComplete, logic.userEmail, isOnline, logic.isAdmin]);
@@ -149,6 +152,59 @@ const App: React.FC = () => {
         message: `${title}\nČas: ${timeRange}\n\n${desc}`, 
         type: 'info' 
       });
+  };
+
+  // --- LOGIC PRO PŘISTÁNÍ NA PLANETĚ ---
+  // Updated to handle Phases if passed via logic (though mainly UI driven now)
+  const handlePlanetLand = (planetId: string, eventType: GameEventType) => {
+      console.log(`Landing on ${planetId}. Default Type: ${eventType}`);
+      
+      // 1. Najdeme v hráčově inventáři kartu "Navigační Data", která odemkla tuto planetu.
+      const navDataCard = logic.inventory.find(i => i.type === GameEventType.PLANET && i.planetConfig?.planetId === planetId);
+
+      // 2. Kontrola Fází (Waves)
+      if (navDataCard?.planetConfig?.phases && navDataCard.planetConfig.phases.length > 0) {
+          const currentPhaseIndex = navDataCard.planetProgress || 0;
+          if (currentPhaseIndex < navDataCard.planetConfig.phases.length) {
+              const phaseEventId = navDataCard.planetConfig.phases[currentPhaseIndex];
+              const phaseCard = logic.masterCatalog.find(e => e.id === phaseEventId);
+              
+              if (phaseCard) {
+                  // FIX: Do not rename ID to PHASE-... keep original for stacking
+                  // logic.setCurrentEvent({ ...phaseCard, id: `PHASE-${Date.now()}` }); 
+                  logic.setCurrentEvent({ ...phaseCard });
+                  return;
+              }
+          }
+      }
+
+      // 3. Fallback: Legacy Single Event Link
+      if (navDataCard?.planetConfig?.landingEventId) {
+          const specificEvent = logic.masterCatalog.find(e => e.id === navDataCard.planetConfig!.landingEventId);
+          if (specificEvent) {
+               logic.setCurrentEvent({ ...specificEvent, id: `LIVE-${Date.now()}` }); 
+               return;
+          }
+      }
+
+      // 4. Fallback: Random Generator
+      const possibleEvents = logic.masterCatalog.filter(e => e.type === eventType);
+      
+      let eventToTrigger = null;
+      if (possibleEvents.length > 0) {
+          const randomIndex = Math.floor(Math.random() * possibleEvents.length);
+          eventToTrigger = { ...possibleEvents[randomIndex], id: `LANDING-${Date.now()}` }; 
+      } else {
+          eventToTrigger = {
+              id: `GEN-${Date.now()}`,
+              title: `Průzkum Sektoru`,
+              description: `Narazili jste na neznámou aktivitu typu ${eventType}.`,
+              type: eventType,
+              rarity: 'Common'
+          };
+      }
+
+      logic.setCurrentEvent(eventToTrigger);
   };
 
   if (!bootComplete) return <StartupBoot onComplete={handleBootComplete} />;
@@ -235,7 +291,7 @@ const App: React.FC = () => {
                     inventory={logic.inventory} loadingInventory={false} isRefreshing={logic.isRefreshing} 
                     isAdmin={logic.isAdmin} isNight={logic.isNight} adminNightOverride={logic.adminNightOverride}
                     playerClass={logic.playerClass} giftTarget={logic.giftTarget} onRefresh={logic.handleRefreshDatabase} 
-                    onItemClick={logic.handleOpenInventoryItem} isTestMode={logic.isTestMode} // Pass test mode prop
+                    onItemClick={logic.handleOpenInventoryItem} isTestMode={logic.isTestMode} 
                   />
                 </motion.div>
               )}
@@ -243,7 +299,6 @@ const App: React.FC = () => {
               {logic.activeTab === Tab.GENERATOR && (
                 <motion.div key="generator" {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)} className="absolute inset-0">
                   <Generator 
-                    // CRITICAL: Generator always edits Master Catalog (isCatalogUpdate=true)
                     onSaveCard={(e) => logic.handleSaveEvent(e, true)} 
                     userEmail={logic.userEmail || ''} initialData={logic.editingEvent}
                     onClearData={() => logic.setEditingEvent(null)} onDelete={logic.handleDeleteEvent}
@@ -268,14 +323,22 @@ const App: React.FC = () => {
                     onBack={() => logic.setActiveTab(Tab.SCANNER)} onLogout={logic.handleLogout}
                     soundEnabled={logic.soundEnabled} vibrationEnabled={logic.vibrationEnabled}
                     onToggleSound={logic.handleToggleSound} onToggleVibration={logic.handleToggleVibration} userEmail={logic.userEmail}
-                    isAdmin={logic.isAdmin} isTestMode={logic.isTestMode} onToggleTestMode={logic.toggleTestMode} // Pass Test Mode Toggle
+                    isAdmin={logic.isAdmin} isTestMode={logic.isTestMode} onToggleTestMode={logic.toggleTestMode}
+                    onHardReset={logic.handleHardReset} onWipeTestVault={logic.handleWipeTestVault}
                   />
                 </motion.div>
               )}
 
               {logic.activeTab === Tab.SPACESHIP && (
                 <motion.div key="spaceship" {...({ initial: { opacity: 0 }, animate: { opacity: 1, exit: { opacity: 0 } } } as any)} className="absolute inset-0">
-                  <SpaceshipView playerFuel={logic.playerFuel} />
+                  <SpaceshipView 
+                    playerFuel={logic.playerFuel} 
+                    inventory={logic.inventory} 
+                    onPlanetLand={handlePlanetLand}
+                    onFuelConsume={(amount) => logic.handleFuelChange(amount)}
+                    onProgressPlanet={logic.handlePlanetProgress}
+                    masterCatalog={logic.masterCatalog}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -292,6 +355,7 @@ const App: React.FC = () => {
         <NavButton active={logic.activeTab === Tab.SETTINGS} onClick={() => logic.setActiveTab(Tab.SETTINGS)} icon={<SettingsIcon />} label="Sys" />
       </div>
 
+      {/* OVERLAYS */}
       <AnimatePresence>
         {logic.isDocking && (
           <DockingAnimation onComplete={logic.handleDockingComplete} />
@@ -310,9 +374,9 @@ const App: React.FC = () => {
               playerGold={logic.playerGold}
               playerClass={logic.playerClass}
               onInventoryUpdate={logic.handleRefreshDatabase}
-              isAdmin={logic.isAdmin} // PASSING ADMIN PROP
-              isTestMode={logic.isTestMode} // PASSING TEST MODE PROP
-              onGoldChange={logic.handleGoldChange} // PASSING GOLD CHANGE HANDLER
+              isAdmin={logic.isAdmin} 
+              isTestMode={logic.isTestMode} 
+              onGoldChange={logic.handleGoldChange} 
            />
         )}
       </AnimatePresence>
@@ -322,7 +386,6 @@ const App: React.FC = () => {
           <EventCard 
             event={logic.currentEvent} 
             onClose={logic.closeEvent} 
-            // Saving from card (Scan Result) goes to Active Backpack (Test or Master)
             onSave={() => logic.handleSaveEvent(logic.currentEvent!, false)}
             onUse={() => logic.handleUseEvent(logic.currentEvent!)} 
             onDiscard={() => logic.handleDeleteEvent(logic.currentEvent!.id)}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react'; 
 import { GameEvent, GameEventType, DilemmaOption } from '../types';
-import { X, Info, Trash2, Skull, Crown, ShoppingBag, Zap, Shield, Swords, Coins, Heart, Footprints, Cross, Wand2, Sword, Scan, Map, Compass, Navigation, ArrowRight, CornerDownRight, Percent, Satellite, Wind, Radio, Hammer, Box, Fuel } from 'lucide-react'; 
+import { X, Info, Trash2, Skull, Crown, ShoppingBag, Zap, Shield, Swords, Coins, Heart, Footprints, Cross, Wand2, Sword, Scan, Map, Compass, Navigation, ArrowRight, CornerDownRight, Percent, Satellite, Wind, Radio, Hammer, Box, Fuel, Globe, Rocket, Ban } from 'lucide-react'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService'; 
 
@@ -123,6 +123,13 @@ const EventCard: React.FC<EventCardProps> = ({
           accent: 'bg-cyan-500',
           icon: <Satellite className="w-8 h-8 text-cyan-400" />
       };
+      if (type === GameEventType.PLANET) return {
+          bg: 'bg-gradient-to-b from-indigo-950/90 to-black',
+          border: 'border-indigo-500 shadow-[0_0_40px_rgba(99,102,241,0.2)]',
+          text: 'text-indigo-400',
+          accent: 'bg-indigo-500',
+          icon: <Globe className="w-8 h-8 text-indigo-400" />
+      };
       if (type === GameEventType.TRAP) return {
           bg: 'bg-gradient-to-b from-orange-950/90 to-black',
           border: 'border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)]',
@@ -186,6 +193,32 @@ const EventCard: React.FC<EventCardProps> = ({
             </motion.div>
         )}
     </AnimatePresence>
+  );
+
+  const renderPlanetContent = () => (
+      <div className="space-y-4">
+          <div className="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-xl flex items-center gap-4">
+              <div className="p-3 bg-black border border-indigo-500/50 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                  <Rocket className="w-6 h-6 text-indigo-400" />
+              </div>
+              <div>
+                  <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1">
+                      Navigační Data
+                  </h4>
+                  <p className="text-xs text-zinc-300 font-mono leading-relaxed">
+                      Uložte tuto kartu do batohu. Odemkne vám novou destinaci v navigačním systému lodi.
+                  </p>
+              </div>
+          </div>
+          <div className="bg-black/40 border border-white/5 p-3 rounded-lg flex justify-between items-center">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase">Sektor ID</span>
+              <span className="text-white font-mono font-bold">{event.planetConfig?.planetId || 'N/A'}</span>
+          </div>
+          <div className="bg-black/40 border border-white/5 p-3 rounded-lg flex justify-between items-center">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase">Typ Eventu</span>
+              <span className="text-white font-mono font-bold">{event.planetConfig?.landingEventType || 'UNKNOWN'}</span>
+          </div>
+      </div>
   );
 
   const renderStationContent = () => (
@@ -328,6 +361,23 @@ const EventCard: React.FC<EventCardProps> = ({
             <Info className="w-3 h-3" /> Klikni na stat pro vysvětlení vlivu
           </p>
           
+          {/* SELL ONLY WARNING */}
+          {event.isSellOnly && (
+              <div className="bg-red-950/20 border border-red-500/30 p-4 rounded-xl flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-black border border-red-500/50 rounded-lg shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+                      <Ban className="w-6 h-6 text-red-500" />
+                  </div>
+                  <div>
+                      <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-1 flex items-center gap-2">
+                          JEN PRO PRODEJ
+                      </h4>
+                      <p className="text-[8px] text-zinc-400 font-mono leading-relaxed">
+                          Tento předmět nemá žádnou funkční hodnotu. Lze jej pouze prodat obchodníkům za kredity.
+                      </p>
+                  </div>
+              </div>
+          )}
+          
           {/* RESOURCE CONTAINER DISPLAY */}
           {event.resourceConfig?.isResourceContainer && (
               <div className="bg-orange-950/20 border border-orange-500/30 p-4 rounded-xl flex items-center gap-4 mb-4">
@@ -382,7 +432,7 @@ const EventCard: React.FC<EventCardProps> = ({
               <button onClick={onClose} className="p-2 text-white/30 hover:text-white transition-colors bg-black/20 rounded-full"><X className="w-6 h-6" /></button>
           </div>
           <span className="text-[9px] font-mono font-bold text-white/30 uppercase tracking-[0.3em] block mb-1">
-            {isDilemma ? 'TAKTICKÉ ROZHODNUTÍ' : `${event.type} • ${event.id}`}
+            {isDilemma ? 'TAKTICKÉ ROZHODNUTÍ' : `${event.type}`}
           </span>
           <h2 className={`text-3xl font-black uppercase tracking-tighter leading-none font-sans ${theme.text} drop-shadow-md`}>{event.title}</h2>
           
@@ -405,6 +455,7 @@ const EventCard: React.FC<EventCardProps> = ({
                 {event.type === GameEventType.TRAP && renderTrapContent()}
                 {(event.type === GameEventType.ENCOUNTER || event.type === GameEventType.BOSS) && renderCombatContent()}
                 {event.type === GameEventType.MERCHANT && renderMerchantContent()}
+                {event.type === GameEventType.PLANET && renderPlanetContent()}
                 {/* Fallback to renderItemContent if type is ITEM or undefined/generic */}
                 {(event.type === GameEventType.ITEM || event.type === 'PŘEDMĚT' as GameEventType) && renderItemContent()}
                 {event.type === GameEventType.SPACE_STATION && renderStationContent()}
@@ -506,7 +557,8 @@ const EventCard: React.FC<EventCardProps> = ({
         {/* FOOTER ACTIONS */}
         <div className="p-4 bg-black/60 border-t border-white/5 flex flex-col gap-2 relative z-10 backdrop-blur-md">
           <div className="flex gap-3">
-              {onUse && dilemmaStep !== 'RESULT' && !isDilemma && !event.resourceConfig?.isResourceContainer && (
+              {/* USE BUTTON - HIDDEN IF SELL ONLY OR PLANET */}
+              {onUse && dilemmaStep !== 'RESULT' && !isDilemma && !event.resourceConfig?.isResourceContainer && !event.isSellOnly && event.type !== GameEventType.PLANET && (
                 <button onClick={onUse} className={`flex-1 py-4 text-black font-black uppercase text-[11px] tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all font-mono rounded-xl shadow-lg ${theme.accent}`}>
                     {event.type === GameEventType.TRAP ? 'Pokusit se Odejít' : 
                      event.type === GameEventType.ENCOUNTER ? 'Zahájit Boj' : 
@@ -524,8 +576,8 @@ const EventCard: React.FC<EventCardProps> = ({
                     {event.resourceConfig?.isResourceContainer ? <><Hammer className="w-4 h-4"/> Vytěžit</> : 'Uložit'}
                 </button>
               ) : (
-                 // If saved and no use button (resource), show "Owned" to prevent empty footer
-                 isSaved && event.resourceConfig?.isResourceContainer && (
+                 // If saved and no use button (resource or Planet or Sell Only), show "Owned" or discard option
+                 isSaved && (event.resourceConfig?.isResourceContainer || event.type === GameEventType.PLANET || event.isSellOnly) && (
                      <div className="flex-1 py-4 border border-white/10 bg-white/5 text-zinc-500 font-black uppercase text-[11px] tracking-[0.2em] rounded-xl flex items-center justify-center gap-2 cursor-default">
                          <Box className="w-4 h-4"/> VLASTNĚNO
                      </div>

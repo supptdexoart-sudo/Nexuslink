@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Volume2, VolumeX, Vibrate, VibrateOff, LogOut, ChevronRight, ArrowLeft, Shield, Maximize, Minimize, FlaskConical, Database } from 'lucide-react';
+import { BookOpen, Volume2, VolumeX, Vibrate, VibrateOff, LogOut, ChevronRight, ArrowLeft, Shield, Maximize, Minimize, FlaskConical, Database, RefreshCw, Trash2 } from 'lucide-react';
 import ManualView from './ManualView';
 
 interface SettingsViewProps {
@@ -15,11 +15,13 @@ interface SettingsViewProps {
   isAdmin?: boolean;
   isTestMode?: boolean;
   onToggleTestMode?: () => void;
+  onHardReset?: () => void; 
+  onWipeTestVault?: () => void; // Added prop
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ 
   onBack, onLogout, soundEnabled, vibrationEnabled, onToggleSound, onToggleVibration, userEmail,
-  isAdmin, isTestMode, onToggleTestMode
+  isAdmin, isTestMode, onToggleTestMode, onHardReset, onWipeTestVault
 }) => {
   const [showManual, setShowManual] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -74,23 +76,27 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         {/* ADMIN TEST MODE SWITCH */}
-        {isAdmin && onToggleTestMode && (
-            <button 
-                onClick={onToggleTestMode}
-                className={`w-full p-4 tactical-card border-2 flex items-center justify-between group active:scale-[0.98] transition-all ${isTestMode ? 'border-orange-500 bg-orange-950/20' : 'border-purple-500 bg-purple-900/20'}`}
-            >
-                <div className="flex items-center gap-4">
-                    {isTestMode ? <FlaskConical className="w-6 h-6 text-orange-500 animate-pulse" /> : <Database className="w-6 h-6 text-purple-500" />}
-                    <div className="text-left">
-                        <span className={`text-sm font-black uppercase tracking-wider block ${isTestMode ? 'text-orange-500' : 'text-purple-500'}`}>
-                            {isTestMode ? 'Režim: TESTOVACÍ BATOH' : 'Režim: MASTER DATABÁZE'}
-                        </span>
-                        <span className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight">
-                            {isTestMode ? 'Používáte virtuální testovací účet' : 'Používáte hlavní účet (Live)'}
-                        </span>
-                    </div>
-                </div>
-            </button>
+        {isAdmin && (
+            <div className="space-y-4">
+                {onToggleTestMode && (
+                    <button 
+                        onClick={onToggleTestMode}
+                        className={`w-full p-4 tactical-card border-2 flex items-center justify-between group active:scale-[0.98] transition-all ${isTestMode ? 'border-orange-500 bg-orange-950/20' : 'border-purple-500 bg-purple-900/20'}`}
+                    >
+                        <div className="flex items-center gap-4">
+                            {isTestMode ? <FlaskConical className="w-6 h-6 text-orange-500 animate-pulse" /> : <Database className="w-6 h-6 text-purple-500" />}
+                            <div className="text-left">
+                                <span className={`text-sm font-black uppercase tracking-wider block ${isTestMode ? 'text-orange-500' : 'text-purple-500'}`}>
+                                    {isTestMode ? 'Režim: TESTOVACÍ BATOH' : 'Režim: MASTER DATABÁZE'}
+                                </span>
+                                <span className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight">
+                                    {isTestMode ? 'Používáte virtuální testovací účet' : 'Používáte hlavní účet (Live)'}
+                                </span>
+                            </div>
+                        </div>
+                    </button>
+                )}
+            </div>
         )}
 
         <button 
@@ -130,9 +136,41 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
 
+        {/* WIPE TEST VAULT BUTTON - ONLY FOR TEST MODE ADMIN */}
+        {isTestMode && isAdmin && onWipeTestVault && (
+            <button 
+                onClick={onWipeTestVault}
+                className="w-full p-4 border border-red-500/50 bg-red-950/20 rounded-xl flex items-center justify-between group active:scale-[0.98] transition-all hover:bg-red-900/30"
+            >
+                <div className="flex items-center gap-4">
+                    <Trash2 className="w-5 h-5 text-red-500" />
+                    <div className="text-left">
+                        <span className="text-sm font-black uppercase tracking-wider block text-red-500">VYMAZAT TESTOVACÍ DATA</span>
+                        <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-tight">Smaže všechen testovací inventář ze serveru.</span>
+                    </div>
+                </div>
+            </button>
+        )}
+
+        {/* HARD RESET BUTTON */}
+        {onHardReset && !isTestMode && (
+            <button 
+                onClick={onHardReset}
+                className="w-full p-4 border border-orange-500/30 bg-orange-950/20 rounded-xl flex items-center justify-between group active:scale-[0.98] transition-all hover:bg-orange-900/30"
+            >
+                <div className="flex items-center gap-4">
+                    <RefreshCw className="w-5 h-5 text-orange-500" />
+                    <div className="text-left">
+                        <span className="text-sm font-black uppercase tracking-wider block text-orange-500">Vynutit Synchronizaci</span>
+                        <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-tight">Oprava chyb (Smaže cache, stáhne DB)</span>
+                    </div>
+                </div>
+            </button>
+        )}
+
         <button 
           onClick={onLogout}
-          className="w-full mt-8 p-4 border border-signal-hazard/30 bg-signal-hazard/10 rounded-xl flex items-center justify-center gap-3 text-signal-hazard font-black uppercase text-xs tracking-[0.3em] active:scale-[0.95] transition-all"
+          className="w-full mt-4 p-4 border border-signal-hazard/30 bg-signal-hazard/10 rounded-xl flex items-center justify-center gap-3 text-signal-hazard font-black uppercase text-xs tracking-[0.3em] active:scale-[0.95] transition-all"
         >
           <LogOut className="w-5 h-5" />
           Odpojit_ze_Sektoru

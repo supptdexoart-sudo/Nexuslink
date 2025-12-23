@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, Hash, ArrowRight, Gamepad2, Loader2, Users, Sword, Wand2, Footprints, Cross, Lock, Eye, EyeOff, AlertTriangle, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -10,7 +11,8 @@ interface GameSetupProps {
 }
 
 const GameSetup: React.FC<GameSetupProps> = ({ initialNickname, onConfirmSetup, isGuest }) => {
-  const [step, setStep] = useState<'nickname' | 'class' | 'action' | 'join'>('nickname');
+  // Pokud máme initialNickname (z Guest loginu), začneme rovnou výběrem třídy
+  const [step, setStep] = useState<'nickname' | 'class' | 'action' | 'join'>(initialNickname ? 'class' : 'nickname');
   const [nickname, setNickname] = useState(initialNickname || '');
   const [selectedClass, setSelectedClass] = useState<PlayerClass | null>(null);
   const [roomId, setRoomId] = useState('');
@@ -21,14 +23,6 @@ const GameSetup: React.FC<GameSetupProps> = ({ initialNickname, onConfirmSetup, 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isPrivateRoom, setIsPrivateRoom] = useState(false);
-
-  // Skip nickname step if already set, but ensure class is selected
-  React.useEffect(() => {
-    if (initialNickname) {
-      setNickname(initialNickname);
-      setStep('class');
-    }
-  }, [initialNickname]);
 
   const handleNicknameSubmit = (e: React.FormEvent) => {
     e.preventDefault();

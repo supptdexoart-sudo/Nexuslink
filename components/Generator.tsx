@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Download, RotateCcw, QrCode, Trash2, Upload, AlertTriangle, Save } from 'lucide-react';
+import { Download, RotateCcw, QrCode, Trash2, Upload, AlertTriangle, Save, Skull, CheckCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService';
 import * as apiService from '../services/apiService';
@@ -15,6 +15,7 @@ import TrapPanel from './generator/TrapPanel';
 import EnemyLootPanel from './generator/EnemyLootPanel';
 import NightVariantPanel from './generator/NightVariantPanel';
 import SpaceStationPanel from './generator/SpaceStationPanel';
+import PlanetPanel from './generator/PlanetPanel';
 
 interface GeneratorProps {
   onSaveCard: (event: GameEvent) => void;
@@ -34,7 +35,8 @@ const initialEventState: GameEvent = {
   flavorText: '',
   stats: [],
   isShareable: true,
-  isConsumable: false,
+  isConsumable: true, // DEFAULT TRUE FOR SAFETY
+  isSellOnly: false, // NOVÉ
   canBeSaved: true, 
   price: 0,
   trapConfig: { difficulty: 10, damage: 20, disarmClass: PlayerClass.ROGUE, successMessage: "Past zneškodněna.", failMessage: "Past sklapla!" },
@@ -42,7 +44,20 @@ const initialEventState: GameEvent = {
   timeVariant: { enabled: false, nightStats: [] },
   stationConfig: { fuelReward: 50, repairAmount: 30, refillO2: true, welcomeMessage: "Vítejte na palubě." },
   resourceConfig: { isResourceContainer: false, resourceName: 'Surovina', resourceAmount: 1, customLabel: 'Surovina k Těžbě' },
-  craftingRecipe: { enabled: false, requiredResources: [], craftingTimeSeconds: 60 }
+  craftingRecipe: { enabled: false, requiredResources: [], craftingTimeSeconds: 60 },
+  planetConfig: { planetId: 'p1', landingEventType: GameEventType.ENCOUNTER, phases: [] }
+};
+
+// Mapování typů na prefixy ID (Bez diakritiky pro bezpečnost QR kódů)
+const ID_PREFIXES: Record<string, string> = {
+    [GameEventType.ITEM]: 'PRE-',        // PŘE-dmět
+    [GameEventType.ENCOUNTER]: 'SET-',   // SET-kání
+    [GameEventType.TRAP]: 'NAS-',        // NÁS-traha
+    [GameEventType.MERCHANT]: 'OBCH-',   // OBCH-odník
+    [GameEventType.DILEMA]: 'DIL-',      // DIL-ema
+    [GameEventType.BOSS]: 'BOSS-',       // BOSS
+    [GameEventType.SPACE_STATION]: 'VS-',// V-esmírná S-tanice
+    [GameEventType.PLANET]: 'PLA-',      // PLA-neta
 };
 
 const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialData, onClearData, onDelete, masterCatalog = [] }) => {
@@ -52,6 +67,17 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   const [isDownloading, setIsDownloading] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPurgeModal, setShowPurgeModal] = useState(false); // FOR GLOBAL PURGE
+
+  // Validace ID v reálném čase
+  const isIdDuplicate = useMemo(() => {
+      if (!newEvent.id) return false;
+      // Pokud editujeme, ignorujeme shodu s vlastní "starou" verzí (pokud se ID nezměnilo)
+      if (isEditingMode && initialData?.id === newEvent.id) return false;
+      
+      // Hledáme v katalogu
+      return masterCatalog.some(item => item.id.toLowerCase() === newEvent.id.toLowerCase());
+  }, [newEvent.id, masterCatalog, isEditingMode, initialData]);
 
   useEffect(() => {
     if (initialData) {
@@ -69,17 +95,44 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
               enabled: initialData.craftingRecipe?.enabled ?? false,
               requiredResources: initialData.craftingRecipe?.requiredResources ?? [],
               craftingTimeSeconds: initialData.craftingRecipe?.craftingTimeSeconds ?? 60
-          }
+          },
+          planetConfig: {
+              planetId: initialData.planetConfig?.planetId ?? 'p1',
+              landingEventType: initialData.planetConfig?.landingEventType ?? GameEventType.ENCOUNTER,
+              landingEventId: initialData.planetConfig?.landingEventId,
+              phases: initialData.planetConfig?.phases ?? [] // FIX: Nyní načítáme i fáze
+          },
+          isSellOnly: initialData.isSellOnly ?? false
       });
       setIsEditingMode(true);
     } else {
-        setNewEvent(initialEventState);
+        // Při startu nového (pokud nejsme v editaci), vygenerujeme první ID
+        const prefix = ID_PREFIXES[GameEventType.ITEM];
+        const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+        setNewEvent({ ...initialEventState, id: `${prefix}${randomSuffix}` });
         setIsEditingMode(false);
     }
   }, [initialData]);
 
   const updateEvent = (updates: Partial<GameEvent>) => setNewEvent(prev => ({ ...prev, ...updates }));
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => updateEvent({ [e.target.name]: e.target.value });
+
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newType = e.target.value as GameEventType;
+      
+      // Generování nového ID při změně typu
+      // Pouze pokud NEJDE o editaci existující karty (abychom omylem nepřepsali ID existující karty při změně typu)
+      // NEBO pokud uživatel tvoří novou kartu
+      if (!isEditingMode) {
+          const prefix = ID_PREFIXES[newType] || 'GEN-';
+          const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+          updateEvent({ type: newType, id: `${prefix}${randomSuffix}` });
+      } else {
+          // V edit módu změníme jen typ
+          updateEvent({ type: newType });
+      }
+  };
 
   const handleDeleteClick = () => {
       if (!onDelete || !newEvent.id) return;
@@ -88,10 +141,30 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
       setShowDeleteModal(true);
   };
 
+  const handlePurgeClick = () => {
+      if (!newEvent.id) return;
+      playSound('siren');
+      vibrate([100, 100, 100]);
+      setShowPurgeModal(true);
+  };
+
   const confirmDelete = () => {
       if (onDelete && newEvent.id) {
           onDelete(newEvent.id);
           setShowDeleteModal(false);
+      }
+  };
+
+  const confirmPurge = async () => {
+      if (!newEvent.id) return;
+      try {
+          await apiService.purgeItemFromAllUsers(newEvent.id);
+          setFeedback({ message: 'GLOBÁLNÍ VYHLAZENÍ DOKONČENO.', type: 'success' });
+          playSound('damage');
+          if (onDelete) onDelete(newEvent.id); // Also remove from local/master
+          setShowPurgeModal(false);
+      } catch (e: any) {
+          setFeedback({ message: `Chyba vyhlazení: ${e.message}`, type: 'error' });
       }
   };
 
@@ -118,7 +191,8 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
           [GameEventType.DILEMA]: '9333ea', 
           [GameEventType.MERCHANT]: 'f5c518', 
           [GameEventType.ITEM]: '007aff',
-          [GameEventType.SPACE_STATION]: '22d3ee'
+          [GameEventType.SPACE_STATION]: '22d3ee',
+          [GameEventType.PLANET]: '6366f1'
       };
       const color = colorMap[type] || 'ffffff';
       return `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&color=${color}&bgcolor=0a0a0c&margin=20&data=${encodeURIComponent(id)}`;
@@ -155,12 +229,19 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if(!userEmail || !newEvent.id) { setFeedback({ message: 'Zadejte ID assetu.', type: 'error' }); return; }
+      if (isIdDuplicate) { setFeedback({ message: 'CHYBA: Toto ID již existuje!', type: 'error' }); playSound('error'); return; }
+      
       try {
           const eventToSave = { ...newEvent };
           if (userEmail === 'zbynekbal97@gmail.com') eventToSave.qrCodeUrl = currentQrUrl;
           await onSaveCard(eventToSave);
           setFeedback({ message: 'Data synchronizována se serverem.', type: 'success' });
-          if(!isEditingMode) setNewEvent(initialEventState);
+          if(!isEditingMode) {
+              // Reset to default item
+              const prefix = ID_PREFIXES[GameEventType.ITEM];
+              const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+              setNewEvent({ ...initialEventState, id: `${prefix}${randomSuffix}` });
+          }
       } catch (e: any) { setFeedback({ message: e.message, type: 'error' }); }
   };
 
@@ -179,6 +260,11 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                 >
                     {isBackingUp ? <RotateCcw className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>}
                 </button>
+                {isEditingMode && (
+                    <button type="button" onClick={handlePurgeClick} className="p-2 bg-black border border-red-600 text-red-600 hover:bg-red-600/20 active:scale-95 transition-all animate-pulse" title="GLOBÁLNÍ VYHLAZENÍ">
+                        <Skull className="w-5 h-5"/>
+                    </button>
+                )}
                 {isEditingMode && onDelete && (
                     <button type="button" onClick={handleDeleteClick} className="p-2 bg-black border border-red-900/50 text-red-500 hover:bg-red-900/20 active:scale-95 transition-all">
                         <Trash2 className="w-5 h-5"/>
@@ -195,13 +281,38 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
         <form onSubmit={handleSubmit} className="space-y-8">
             <div className="bg-arc-panel p-6 border border-arc-border space-y-6 relative bracket-tl bracket-tr">
                 <div className="grid grid-cols-2 gap-6">
-                    <div>
+                    <div className="relative">
                         <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest mb-1 block">ID_KARTY (jedinečné!):</label>
-                        <input name="id" value={newEvent.id} onChange={handleChange} placeholder="NXS-001" className="w-full bg-black border border-arc-border p-3 text-white font-mono uppercase focus:border-arc-yellow outline-none text-sm" required readOnly={isEditingMode}/>
+                        <div className="relative">
+                            <input 
+                                name="id" 
+                                value={newEvent.id} 
+                                onChange={handleChange} 
+                                placeholder="NXS-001" 
+                                className={`w-full bg-black border p-3 text-white font-mono uppercase outline-none text-sm transition-colors ${isIdDuplicate ? 'border-red-500 focus:border-red-600 text-red-500' : 'border-arc-border focus:border-arc-yellow'}`} 
+                                required 
+                                readOnly={isEditingMode}
+                            />
+                            {isIdDuplicate && (
+                                <div className="absolute right-3 top-3 animate-pulse">
+                                    <XCircle className="w-5 h-5 text-red-500" />
+                                </div>
+                            )}
+                        </div>
+                        {isIdDuplicate && (
+                            <p className="text-[9px] text-red-500 font-bold uppercase mt-1 tracking-widest flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" /> ID již existuje v databázi!
+                            </p>
+                        )}
+                        {!isIdDuplicate && newEvent.id.length > 3 && (
+                            <p className="text-[9px] text-green-500 font-bold uppercase mt-1 tracking-widest flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> ID Dostupné
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="text-[8px] text-zinc-300 uppercase font-bold tracking-widest mb-1 block">TYP_karty:</label>
-                        <select name="type" value={newEvent.type} onChange={handleChange} className="w-full bg-black border border-arc-border p-3 text-white font-mono uppercase focus:border-arc-yellow outline-none text-sm">
+                        <select name="type" value={newEvent.type} onChange={handleTypeChange} className="w-full bg-black border border-arc-border p-3 text-white font-mono uppercase focus:border-arc-yellow outline-none text-sm">
                             {Object.values(GameEventType).map(t => <option key={t} value={t} className="bg-arc-panel text-white">{t}</option>)}
                         </select>
                     </div>
@@ -252,6 +363,11 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                     <SpaceStationPanel event={newEvent} onUpdate={updateEvent} />
                 )}
 
+                {/* PLANET CONFIGURATION */}
+                {newEvent.type === GameEventType.PLANET && (
+                    <PlanetPanel event={newEvent} onUpdate={updateEvent} masterCatalog={masterCatalog} />
+                )}
+
                 {/* DILEMMA CONFIGURATION */}
                 {newEvent.type === GameEventType.DILEMA && (
                     <DilemmaPanel event={newEvent} onUpdate={updateEvent} />
@@ -295,7 +411,11 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                 </div>
             )}
 
-            <button type="submit" className="w-full py-6 bg-signal-amber border-2 border-signal-amber/50 text-black font-black uppercase text-sm tracking-[0.4em] hover:bg-white hover:text-black transition-all shadow-[0_0_30px_rgba(255,157,0,0.3)] rounded-xl flex items-center justify-center gap-3">
+            <button 
+                type="submit" 
+                disabled={isIdDuplicate}
+                className={`w-full py-6 border-2 font-black uppercase text-sm tracking-[0.4em] transition-all shadow-[0_0_30px_rgba(255,157,0,0.3)] rounded-xl flex items-center justify-center gap-3 ${isIdDuplicate ? 'bg-zinc-800 border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-signal-amber border-signal-amber/50 text-black hover:bg-white hover:text-black'}`}
+            >
                 <Upload className="w-5 h-5" />
                 {isEditingMode ? 'Synchronizovat_Změny' : 'Nahrát kartu do databáze!'}
             </button>
@@ -320,10 +440,10 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                             </div>
                             <div>
                                 <h3 className="text-xl font-black text-red-600 uppercase tracking-tighter">Destrukce Dat</h3>
-                                <p className="text-[10px] text-red-600/60 font-mono mt-1 font-bold tracking-widest">PROCES JE NEVRATNÝ</p>
+                                <p className="text-[10px] text-red-600/60 font-mono mt-1 font-bold tracking-widest">Smazat pouze z Master DB</p>
                             </div>
                             <p className="text-xs text-zinc-300 font-bold leading-relaxed">
-                                Opravdu chcete trvale vymazat asset <span className="text-white font-mono bg-white/10 px-1">{newEvent.id}</span> z databáze?
+                                Smaže kartu z katalogu. <br/>Hráči, kteří ji už mají, o ni nepřijdou.
                             </p>
                             <div className="grid grid-cols-2 gap-3 mt-6">
                                 <button 
@@ -337,6 +457,53 @@ const Generator: React.FC<GeneratorProps> = ({ onSaveCard, userEmail, initialDat
                                     className="py-3 bg-red-600 text-black font-black uppercase text-[10px] tracking-widest hover:bg-red-500 transition-colors shadow-lg animate-pulse"
                                 >
                                     Smazat
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* GLOBAL PURGE MODAL */}
+        <AnimatePresence>
+            {showPurgeModal && (
+                <motion.div 
+                    {...({ initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } as any)}
+                    className="fixed inset-0 z-[250] bg-red-950/90 backdrop-blur-md flex items-center justify-center p-6"
+                >
+                    <motion.div 
+                        {...({ initial: { scale: 0.9, y: 20 }, animate: { scale: 1, y: 0 } } as any)}
+                        className="bg-black border-4 border-red-600 w-full max-w-sm shadow-[0_0_100px_rgba(220,38,38,0.8)] relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 left-0 w-full h-2 bg-red-600 animate-pulse"></div>
+                        <div className="p-8 text-center space-y-6">
+                            <div className="flex justify-center mb-4">
+                                <div className="p-6 bg-red-600 rounded-full border-4 border-black animate-bounce">
+                                    <Skull className="w-16 h-16 text-black" />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-3xl font-black text-red-600 uppercase tracking-tighter">GLOBÁLNÍ VYHLAZENÍ</h3>
+                                <p className="text-xs text-white font-mono mt-2 font-bold tracking-[0.2em] bg-red-600 px-2 py-1 inline-block">ADMIN OVERRIDE: LEVEL 5</p>
+                            </div>
+                            <p className="text-sm text-red-200 font-bold leading-relaxed border-y border-red-900/50 py-4">
+                                TATO AKCE JE NEVRATNÁ.<br/><br/>
+                                1. Smaže kartu z Master Databáze.<br/>
+                                2. <span className="text-white underline">NÁSILÍM ODSTRANÍ</span> kartu z batohu VŠECH hráčů na serveru.
+                            </p>
+                            <div className="grid grid-cols-1 gap-3 mt-6">
+                                <button 
+                                    onClick={confirmPurge}
+                                    className="py-5 bg-red-600 text-black font-black uppercase text-sm tracking-[0.3em] hover:bg-white transition-colors shadow-xl"
+                                >
+                                    PROVÉST VYHLAZENÍ
+                                </button>
+                                <button 
+                                    onClick={() => setShowPurgeModal(false)}
+                                    className="py-4 bg-transparent text-zinc-500 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors"
+                                >
+                                    Zrušit Protokol
                                 </button>
                             </div>
                         </div>

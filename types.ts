@@ -6,7 +6,8 @@ export enum GameEventType {
   MERCHANT = 'OBCHODNÍK',
   DILEMA = 'DILEMA',
   BOSS = 'BOSS',
-  SPACE_STATION = 'VESMÍRNÁ_STANICE'
+  SPACE_STATION = 'VESMÍRNÁ_STANICE',
+  PLANET = 'PLANETA'
 }
 
 export enum PlayerClass {
@@ -141,6 +142,13 @@ export interface MarketConfig {
     recyclingOutput: RecycleOutput[];
 }
 
+export interface PlanetConfig {
+    planetId: string; // ID pro párování s UI (p1, p2, p3, p4)
+    landingEventType: GameEventType; // Legacy fallback
+    landingEventId?: string; // Legacy fallback
+    phases?: string[]; // Array of Event IDs representing waves/phases
+}
+
 export interface GameEvent {
   id: string;
   title: string;
@@ -151,9 +159,10 @@ export interface GameEvent {
   flavorText?: string;
   
   isShareable?: boolean;
-  isConsumable?: boolean; 
+  isConsumable?: boolean;
+  isSellOnly?: boolean; 
   canBeSaved?: boolean;   
-  isLocked?: boolean; // Bezpečnostní pojistka proti smazání
+  isLocked?: boolean; 
   
   price?: number; 
   
@@ -171,10 +180,13 @@ export interface GameEvent {
 
   stationConfig?: StationConfig;
   
-  resourceConfig?: ResourceConfig; // Konfigurace surovin
-  craftingRecipe?: CraftingRecipe; // Konfigurace výroby
+  resourceConfig?: ResourceConfig; 
+  craftingRecipe?: CraftingRecipe; 
   
-  marketConfig?: MarketConfig; // Konfigurace tržiště a recyklace
+  marketConfig?: MarketConfig; 
+  
+  planetConfig?: PlanetConfig; 
+  planetProgress?: number; // Sleduje, kolikátou fázi už hráč splnil (0 = začátek)
 
   timeVariant?: TimeVariant; 
   classVariants?: Partial<Record<PlayerClass, ClassVariant>>; 

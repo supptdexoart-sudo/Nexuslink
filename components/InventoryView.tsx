@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { GameEvent, GameEventType, PlayerClass } from '../types';
-import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap, Satellite, Hammer, Filter, Layers, Copy, FlaskConical } from 'lucide-react';
+import { Box, ShoppingBag, BookOpen, Crown, RefreshCw, Loader2, Database, Swords, ArrowDownAZ, Star, Target, ArrowLeftRight, X, Zap, Satellite, Hammer, Filter, Layers, Copy, FlaskConical, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService';
 
@@ -34,6 +34,7 @@ interface StackedGameEvent extends GameEvent {
 const getRarityConfig = (rarity: string, type: string) => {
     if (type === GameEventType.BOSS) return { border: 'border-signal-hazard shadow-[0_0_15px_rgba(255,60,60,0.3)]', text: 'text-signal-hazard', label: 'BOSS_LEVEL' };
     if (type === GameEventType.SPACE_STATION) return { border: 'border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.3)]', text: 'text-cyan-400', label: 'ORBITÁLNÍ' };
+    if (type === GameEventType.PLANET) return { border: 'border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.3)]', text: 'text-indigo-400', label: 'NAVIGAČNÍ DATA' };
     
     const r = (rarity || 'Common').toLowerCase();
     switch (r) {
@@ -53,6 +54,7 @@ const getEventIcon = (type: GameEventType, isResource: boolean) => {
         case GameEventType.TRAP: return <Swords className="w-4 h-4" />;
         case GameEventType.ENCOUNTER: return <Swords className="w-4 h-4" />;
         case GameEventType.SPACE_STATION: return <Satellite className="w-4 h-4" />;
+        case GameEventType.PLANET: return <Globe className="w-4 h-4" />;
         default: return <BookOpen className="w-4 h-4" />;
     }
 };
@@ -94,7 +96,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         // 1. STACKING LOGIC
         const stackedMap = new Map<string, StackedGameEvent>();
 
-        inventory.forEach(item => {
+        // Zde jsme dříve filtrovali PLANET. Nyní zobrazujeme vše.
+        const visibleInventory = inventory;
+
+        visibleInventory.forEach(item => {
             const isResource = !!item.resourceConfig?.isResourceContainer;
             const groupKey = isResource 
                 ? `RES-${item.resourceConfig!.resourceName}`
@@ -126,7 +131,8 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         } else if (selectedCategory === 'ITEMS') {
             result = result.filter(i => (i.type === GameEventType.ITEM || i.type === 'PŘEDMĚT' as GameEventType) && !i.resourceConfig?.isResourceContainer);
         } else if (selectedCategory === 'OTHERS') {
-            const otherTypes = [GameEventType.ENCOUNTER, GameEventType.TRAP, GameEventType.DILEMA, GameEventType.BOSS, GameEventType.SPACE_STATION];
+            // Přidáme PLANET do kategorie Ostatní
+            const otherTypes = [GameEventType.ENCOUNTER, GameEventType.TRAP, GameEventType.DILEMA, GameEventType.BOSS, GameEventType.SPACE_STATION, GameEventType.PLANET];
             result = result.filter(i => otherTypes.includes(i.type));
         }
 
