@@ -122,6 +122,8 @@ export interface TimeVariant {
     nightDescription?: string;
     nightType?: GameEventType;
     nightStats?: Stat[];
+    nightFlavorText?: string;
+    nightRarity?: 'Common' | 'Rare' | 'Epic' | 'Legendary';
 }
 
 export interface ClassVariant {

@@ -330,6 +330,7 @@ const App: React.FC = () => {
                   isAdmin={logic.isAdmin} isNight={logic.isNight} adminNightOverride={logic.adminNightOverride}
                   playerClass={logic.playerClass} giftTarget={logic.giftTarget} onRefresh={logic.handleRefreshDatabase}
                   onItemClick={logic.handleOpenInventoryItem} isTestMode={logic.isTestMode}
+                  getAdjustedItem={logic.getAdjustedItem}
                 />
               </div>
             )}

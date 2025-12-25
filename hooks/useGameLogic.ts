@@ -257,6 +257,9 @@ export const useGameLogic = () => {
             const tv = item.timeVariant;
             if (tv.nightDescription) adjusted.description = tv.nightDescription;
             if (tv.nightTitle) adjusted.title = tv.nightTitle;
+            if (tv.nightType) adjusted.type = tv.nightType;
+            if (tv.nightFlavorText) adjusted.flavorText = tv.nightFlavorText;
+            if (tv.nightRarity) adjusted.rarity = tv.nightRarity;
             if (tv.nightStats) {
                 adjusted.stats = [...(adjusted.stats || []), ...tv.nightStats];
             }

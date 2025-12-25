@@ -17,8 +17,9 @@ interface InventoryViewProps {
     onRefresh: () => void;
     onItemClick: (event: GameEvent) => void;
     onTransferItem?: (itemId: string, targetNickname: string) => void;
+    getAdjustedItem: (item: GameEvent, isNight: boolean, pClass: PlayerClass | null) => GameEvent;
     userNickname?: string;
-    roomMembers?: {name: string, hp: number}[];
+    roomMembers?: { name: string, hp: number }[];
     isTestMode?: boolean; // New prop
 }
 
@@ -35,7 +36,7 @@ const getRarityConfig = (rarity: string, type: string) => {
     if (type === GameEventType.BOSS) return { border: 'border-signal-hazard shadow-[0_0_15px_rgba(255,60,60,0.3)]', text: 'text-signal-hazard', label: 'BOSS_LEVEL' };
     if (type === GameEventType.SPACE_STATION) return { border: 'border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.3)]', text: 'text-cyan-400', label: 'ORBITÁLNÍ' };
     if (type === GameEventType.PLANET) return { border: 'border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.3)]', text: 'text-indigo-400', label: 'NAVIGAČNÍ DATA' };
-    
+
     const r = (rarity || 'Common').toLowerCase();
     switch (r) {
         case 'legendary': return { border: 'border-signal-amber shadow-[0_0_15px_rgba(255,157,0,0.4)]', text: 'text-signal-amber', label: 'LEGENDÁRNÍ' };
@@ -61,11 +62,11 @@ const getEventIcon = (type: GameEventType, isResource: boolean) => {
 
 const InventoryView: React.FC<InventoryViewProps> = ({
     inventory, loadingInventory, isRefreshing, playerClass,
-    onRefresh, onItemClick, isTestMode
+    onRefresh, onItemClick, isTestMode, isNight, getAdjustedItem
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<FilterCategory>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('DEFAULT');
-    
+
     // Comparison State
     const [isCompareMode, setIsCompareMode] = useState(false);
     const [selectedForCompare, setSelectedForCompare] = useState<GameEvent[]>([]);
@@ -97,11 +98,12 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         const stackedMap = new Map<string, StackedGameEvent>();
 
         // Zde jsme dříve filtrovali PLANET. Nyní zobrazujeme vše.
-        const visibleInventory = inventory;
+        // ADJUST FOR NIGHT MODE / CLASS
+        const visibleInventory = inventory.map(item => getAdjustedItem(item, isNight, playerClass));
 
         visibleInventory.forEach(item => {
             const isResource = !!item.resourceConfig?.isResourceContainer;
-            const groupKey = isResource 
+            const groupKey = isResource
                 ? `RES-${item.resourceConfig!.resourceName}`
                 : `ITEM-${item.title}-${item.type}-${item.rarity}`;
 
@@ -113,9 +115,9 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                     existing._stackQty += 1;
                 }
             } else {
-                const clone: StackedGameEvent = { 
-                    ...item, 
-                    _stackQty: 1, 
+                const clone: StackedGameEvent = {
+                    ...item,
+                    _stackQty: 1,
                     _virtualStack: true,
                     resourceConfig: item.resourceConfig ? { ...item.resourceConfig } : undefined
                 };
@@ -124,7 +126,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         });
 
         let result = Array.from(stackedMap.values());
-        
+
         // 2. FILTERING
         if (selectedCategory === 'RESOURCES') {
             result = result.filter(i => i.resourceConfig?.isResourceContainer);
@@ -154,10 +156,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             result.sort((a, b) => {
                 const aRes = a.resourceConfig?.isResourceContainer ? 1 : 0;
                 const bRes = b.resourceConfig?.isResourceContainer ? 1 : 0;
-                if (aRes !== bRes) return bRes - aRes; 
-                return 0; 
+                if (aRes !== bRes) return bRes - aRes;
+                return 0;
             });
-            result.reverse(); 
+            result.reverse();
         }
         return result;
     }, [inventory, selectedCategory, sortMode, playerClass]);
@@ -179,7 +181,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     const renderComparisonOverlay = () => {
         if (selectedForCompare.length !== 2) return null;
         const [itemA, itemB] = selectedForCompare;
-        
+
         const allStatLabels = Array.from(new Set([
             ...(itemA.stats || []).map(s => s.label),
             ...(itemB.stats || []).map(s => s.label)
@@ -197,7 +199,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                         <h2 className="text-2xl font-black uppercase text-signal-cyan chromatic-text">Taktické Srovnání</h2>
                         <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest">Analýza_Assetů_v1.0</p>
                     </div>
-                    <button onClick={() => setSelectedForCompare([])} className="p-3 bg-white/5 rounded-full text-zinc-400 hover:text-white"><X className="w-6 h-6"/></button>
+                    <button onClick={() => setSelectedForCompare([])} className="p-3 bg-white/5 rounded-full text-zinc-400 hover:text-white"><X className="w-6 h-6" /></button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
@@ -218,7 +220,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                         <div className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest border-b border-white/10 pb-2">
                             <Zap className="w-3 h-3" /> Parametry_Modulů
                         </div>
-                        
+
                         {allStatLabels.map(label => {
                             const valA = itemA.stats?.find(s => s.label === label)?.value || '---';
                             const valB = itemB.stats?.find(s => s.label === label)?.value || '---';
@@ -257,8 +259,8 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     return (
         <div className="w-full h-full flex flex-col p-6 bg-[#0a0b0d] overflow-hidden relative">
             {/* Background Dots */}
-            <div className="absolute inset-0 pointer-events-none opacity-5 z-0" 
-                 style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}>
+            <div className="absolute inset-0 pointer-events-none opacity-5 z-0"
+                style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}>
             </div>
 
             <div className="flex justify-between items-start mb-4 relative z-20">
@@ -279,7 +281,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
+                    <button
                         onClick={toggleCompareMode}
                         className={`p-3 tactical-card transition-all active:scale-90 border-2 ${isCompareMode ? 'bg-signal-cyan border-signal-cyan text-black' : 'bg-white/5 border-white/10 text-signal-cyan'}`}
                         title="Srovnání Assetů"
@@ -306,8 +308,8 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-signal-cyan rounded-full animate-pulse" />
                         <span className="text-[10px] font-black text-signal-cyan uppercase tracking-widest">
-                            {selectedForCompare.length === 0 ? 'Vyberte první asset...' : 
-                             selectedForCompare.length === 1 ? 'Vyberte druhý asset z Batohu' : 'Analýza připravena'}
+                            {selectedForCompare.length === 0 ? 'Vyberte první asset...' :
+                                selectedForCompare.length === 1 ? 'Vyberte druhý asset z Batohu' : 'Analýza připravena'}
                         </span>
                     </div>
                     {selectedForCompare.length > 0 && (
@@ -325,11 +327,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                             setSelectedCategory(opt.id as FilterCategory);
                             playSound('click');
                         }}
-                        className={`px-4 py-2.5 rounded-lg flex items-center gap-2 border transition-all whitespace-nowrap ${
-                            selectedCategory === opt.id
-                            ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
-                            : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white hover:border-white/30'
-                        }`}
+                        className={`px-4 py-2.5 rounded-lg flex items-center gap-2 border transition-all whitespace-nowrap ${selectedCategory === opt.id
+                                ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
+                                : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white hover:border-white/30'
+                            }`}
                     >
                         <opt.icon className="w-3 h-3" />
                         <span className="text-[9px] font-black uppercase tracking-widest">{opt.label}</span>
@@ -346,11 +347,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                             setSortMode(opt.id as SortMode);
                             playSound('click');
                         }}
-                        className={`flex-1 py-2 flex flex-col items-center justify-center gap-1 border rounded transition-all ${
-                            sortMode === opt.id 
-                            ? 'bg-signal-cyan/20 border-signal-cyan text-signal-cyan shadow-[0_0_10px_rgba(0,242,255,0.2)]' 
-                            : 'bg-white/5 border-white/10 text-white/40'
-                        }`}
+                        className={`flex-1 py-2 flex flex-col items-center justify-center gap-1 border rounded transition-all ${sortMode === opt.id
+                                ? 'bg-signal-cyan/20 border-signal-cyan text-signal-cyan shadow-[0_0_10px_rgba(0,242,255,0.2)]'
+                                : 'bg-white/5 border-white/10 text-white/40'
+                            }`}
                     >
                         <opt.icon className="w-3.5 h-3.5" />
                         <span className="text-[7px] font-black uppercase tracking-widest">{opt.label}</span>
@@ -374,16 +374,16 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                         ) : (
                             sortedAndFilteredInventory.map((item) => {
                                 const isResource = !!item.resourceConfig?.isResourceContainer;
-                                const config = isResource 
+                                const config = isResource
                                     ? { border: 'border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)]', text: 'text-orange-500', label: 'SUROVINA' }
                                     : getRarityConfig(item.rarity, item.type);
-                                
+
                                 const isSelected = selectedForCompare.some(i => i.id === item.id);
                                 const stackedItem = item as StackedGameEvent;
-                                
+
                                 return (
-                                    <motion.div 
-                                        key={item.id} 
+                                    <motion.div
+                                        key={item.id}
                                         onClick={() => handleCardClick(item)}
                                         {...({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } } as any)}
                                         className={`tactical-card h-48 flex flex-col justify-between p-4 bg-black/40 border-t-2 ${config.border} active:scale-95 transition-transform group relative ${isSelected ? 'scale-90 border-2 border-signal-cyan ring-4 ring-signal-cyan/20' : ''} ${isResource ? 'bg-orange-950/10' : ''}`}
@@ -395,10 +395,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                                 </div>
                                             </div>
                                         )}
-                                        
+
                                         <div className="flex justify-between items-start">
                                             <div className={`${config.text}`}>{getEventIcon(item.type, isResource)}</div>
-                                            
+
                                             {isResource && (
                                                 <div className="text-xs font-mono font-bold text-orange-500 bg-orange-950/50 px-2 py-0.5 rounded border border-orange-500/30 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
                                                     x{item.resourceConfig?.resourceAmount || 1}

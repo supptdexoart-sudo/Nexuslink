@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { GameEvent } from '../../types';
+import { GameEvent, GameEventType } from '../../types';
 import { Moon, Trash2 } from 'lucide-react';
 
 interface NightVariantPanelProps {
@@ -9,7 +9,7 @@ interface NightVariantPanelProps {
 }
 
 const NightVariantPanel: React.FC<NightVariantPanelProps> = ({ event, onUpdate }) => {
-    
+
     const updateNightConfig = (updates: any) => {
         onUpdate({
             timeVariant: {
@@ -27,7 +27,7 @@ const NightVariantPanel: React.FC<NightVariantPanelProps> = ({ event, onUpdate }
 
     const updateNightStat = (index: number, field: 'label' | 'value', value: string) => {
         const stats = [...(event.timeVariant?.nightStats || [])];
-        if(stats[index]) {
+        if (stats[index]) {
             stats[index] = { ...stats[index], [field]: value };
             updateNightConfig({ nightStats: stats });
         }
@@ -46,10 +46,10 @@ const NightVariantPanel: React.FC<NightVariantPanelProps> = ({ event, onUpdate }
                     <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest">Noční_Protokol_v2.0</h3>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={event.timeVariant?.enabled || false} 
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={event.timeVariant?.enabled || false}
                         onChange={(e) => updateNightConfig({ enabled: e.target.checked })}
                     />
                     <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
@@ -58,32 +58,69 @@ const NightVariantPanel: React.FC<NightVariantPanelProps> = ({ event, onUpdate }
 
             {event.timeVariant?.enabled && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Název karty v noci (Override):</label>
-                            <input 
-                                value={event.timeVariant.nightTitle || ''} 
+                            <input
+                                value={event.timeVariant.nightTitle || ''}
                                 onChange={(e) => updateNightConfig({ nightTitle: e.target.value })}
                                 placeholder="Ponechte prázdné pro původní"
                                 className="w-full bg-black border border-indigo-900/50 p-3 text-white text-sm outline-none focus:border-indigo-500"
                             />
                         </div>
                         <div>
-                            <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Popis karty v noci (Override):</label>
-                            <textarea 
-                                value={event.timeVariant.nightDescription || ''} 
-                                onChange={(e) => updateNightConfig({ nightDescription: e.target.value })}
-                                placeholder="Ponechte prázdné pro původní"
-                                className="w-full bg-black border border-indigo-900/50 p-3 text-zinc-300 text-xs font-mono outline-none focus:border-indigo-500"
-                                rows={2}
-                            />
+                            <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">TYP karty v noci:</label>
+                            <select
+                                value={event.timeVariant.nightType || ''}
+                                onChange={(e) => updateNightConfig({ nightType: e.target.value ? e.target.value as any : undefined })}
+                                className="w-full bg-black border border-indigo-900/50 p-3 text-white text-sm outline-none focus:border-indigo-500 uppercase font-mono"
+                            >
+                                <option value="">BEZE ZMĚNY</option>
+                                {Object.values(GameEventType).map((t) => (
+                                    <option key={t} value={t}>{t}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
-                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Noční FLAVOR TEXT (Override):</label>
+                            <input
+                                value={event.timeVariant.nightFlavorText || ''}
+                                onChange={(e) => updateNightConfig({ nightFlavorText: e.target.value })}
+                                placeholder="..."
+                                className="w-full bg-black border border-indigo-900/50 p-3 text-zinc-400 italic text-xs outline-none focus:border-indigo-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Noční VZÁCNOST:</label>
+                            <select
+                                value={event.timeVariant.nightRarity || ''}
+                                onChange={(e) => updateNightConfig({ nightRarity: e.target.value ? e.target.value as any : undefined })}
+                                className="w-full bg-black border border-indigo-900/50 p-3 text-white text-sm outline-none focus:border-indigo-500 font-mono"
+                            >
+                                <option value="">BEZE ZMĚNY</option>
+                                {['Common', 'Rare', 'Epic', 'Legendary'].map(r => (
+                                    <option key={r} value={r}>{r.toUpperCase()}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest mb-1 block">Popis karty v noci (Override):</label>
+                        <textarea
+                            value={event.timeVariant.nightDescription || ''}
+                            onChange={(e) => updateNightConfig({ nightDescription: e.target.value })}
+                            placeholder="Ponechte prázdné pro původní"
+                            className="w-full bg-black border border-indigo-900/50 p-3 text-zinc-300 text-xs font-mono outline-none focus:border-indigo-500"
+                            rows={2}
+                        />
+                    </div>
+
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
                             <label className="text-[8px] text-indigo-300 uppercase font-bold tracking-widest">Noční_Statistiky (Nahrazují původní):</label>
-                            <button 
+                            <button
                                 type="button"
                                 onClick={addNightStat}
                                 className="text-[8px] bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded border border-indigo-500/30 font-bold uppercase"
@@ -93,19 +130,19 @@ const NightVariantPanel: React.FC<NightVariantPanelProps> = ({ event, onUpdate }
                         </div>
                         {event.timeVariant.nightStats?.map((stat, idx) => (
                             <div key={idx} className="flex gap-2 items-center bg-black/40 p-2 border border-indigo-900/30">
-                                <input 
-                                    value={stat.label} 
+                                <input
+                                    value={stat.label}
                                     onChange={(e) => updateNightStat(idx, 'label', e.target.value)}
                                     className="w-20 bg-transparent border-none p-1 text-[9px] font-bold text-indigo-300 uppercase font-mono"
                                     placeholder="TAG"
                                 />
-                                <input 
-                                    value={stat.value} 
+                                <input
+                                    value={stat.value}
                                     onChange={(e) => updateNightStat(idx, 'value', e.target.value)}
                                     className="flex-1 bg-indigo-950/40 border border-indigo-900/50 px-2 py-1 text-xs text-white font-mono focus:border-indigo-400 outline-none"
                                     placeholder="HODNOTA"
                                 />
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => removeNightStat(idx)}
                                     className="text-red-500 p-1 hover:text-red-400"
