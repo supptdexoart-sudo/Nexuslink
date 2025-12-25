@@ -140,12 +140,13 @@ const ManualView: React.FC<ManualViewProps> = ({ onBack }) => {
         <ManualSection icon={<ShieldAlert className="w-5 h-5 text-signal-amber" />} title="Rady pro Přežití" color="text-signal-amber">
           <div className="space-y-4">
             <div className="p-4 bg-signal-amber/5 border-l-4 border-signal-amber rounded-r-xl">
-              <p className="text-xs text-zinc-200">"Před vstupem do temného sektoru se ujisti, že máš v Batohu alespoň dva energetické články. Bez many jsi jen maso pro mutanty."</p>
+              <p className="text-xs text-zinc-200">"Před vstupem do temného sektoru se ujisti, že máš v Batohu dostatek lékárniček a funkční brnění. Bez integrity jsi jen maso pro mutanty."</p>
             </div>
             <ul className="list-disc pl-5 space-y-2 text-xs">
               <li>Využívej <span className="text-white font-bold underline">Sektorovou burzu</span> pro zbavení se nepotřebných karet za kredity.</li>
               <li>Některé karty jsou <span className="text-signal-hazard font-bold">SPOTŘEBOVATELNÉ</span> – po jednom použití zmizí z tvého Batohu navždy.</li>
               <li>Při skenování kódu se dívej na <span className="text-signal-cyan font-bold">RARITU</span>. Legendární karty mají často skryté noční bonusy.</li>
+              <li>Pozor na <span className="text-orange-500 font-bold">PALIVO</span> – pokud ti dojde, nebude možné skenovat žádné nové karty!</li>
             </ul>
           </div>
         </ManualSection>
