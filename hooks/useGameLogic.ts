@@ -638,6 +638,24 @@ export const useGameLogic = () => {
                     ...prev, members: status.members, turnIndex: status.turnIndex, messages, isGameStarted: status.isGameStarted,
                     roundNumber: status.roundNumber, turnOrder: status.turnOrder, readyForNextRound: status.readyForNextRound, host: status.host
                 }));
+
+                // NEW: Global Encounter Sync
+                if (status.activeEncounter) {
+                    // If we are not currently viewing this specific encounter, Open it
+                    if (!currentEvent || currentEvent.id !== status.activeEncounter.id) {
+                        const syncedEvent = getAdjustedItem(status.activeEncounter, isNight, playerClass);
+                        setCurrentEvent(syncedEvent);
+                        setEventSource('scanner'); // Treat as scanner source
+                        playSound('error');
+                        vibrate([200, 100, 200]);
+                    }
+                } else {
+                    // If server has cleared the encounter, but we are still looking at a GLOBAL one -> Close it
+                    if (currentEvent && currentEvent.dilemmaScope === 'GLOBAL') {
+                        setCurrentEvent(null);
+                        setEventSource(null);
+                    }
+                }
                 await apiService.updatePlayerStatus(roomState.id, roomState.nickname, playerHp);
             } catch (e) { /* Silent poll fail */ }
         }, 2000);
@@ -724,6 +742,12 @@ export const useGameLogic = () => {
 
         setCurrentEvent(adjusted);
         if (source) setEventSource(source);
+
+        // NEW: Broadcast if Global Dilemma
+        if (adjusted.type === GameEventType.DILEMA && adjusted.dilemmaScope === 'GLOBAL' && roomState.isInRoom) {
+            apiService.setRoomEncounter(roomState.id, item); // Send RAW item to server
+        }
+
         addToLog(source === 'scanner' ? `Skenováno: ${adjusted.title}` : `Zobrazeno: ${adjusted.title}`);
         setIsAIThinking(false);
     };
@@ -739,6 +763,9 @@ export const useGameLogic = () => {
     };
 
     const closeEvent = () => {
+        if (currentEvent?.dilemmaScope === 'GLOBAL' && roomState.isInRoom) {
+            apiService.setRoomEncounter(roomState.id, null);
+        }
         setCurrentEvent(null);
         setEventSource(null);
     };
