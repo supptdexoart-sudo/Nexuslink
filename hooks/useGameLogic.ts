@@ -97,6 +97,9 @@ export const useGameLogic = () => {
     const prevMembersRef = useRef<any[]>([]);
     const playerHpRef = useRef(playerHp);
     const hasNotifiedStartRef = useRef(false);
+    const hasNotifiedTurnRef = useRef(false);
+    const prevTurnIndexRef = useRef<number>(-1);
+    const lastSetEventTimeRef = useRef<number>(0);
 
     useEffect(() => {
         if (!roomState.isGameStarted) {
@@ -139,13 +142,12 @@ export const useGameLogic = () => {
             if (cachedCatalog) {
                 setMasterCatalog(JSON.parse(cachedCatalog));
             }
-            if (health) {
-                try {
-                    const catalog = await apiService.getMasterCatalog();
-                    setMasterCatalog(catalog);
-                    localStorage.setItem('nexus_master_catalog', JSON.stringify(catalog));
-                } catch (e) { /* ignore */ }
-            }
+            try {
+                // ALWAYS load Master Catalog from Master Admin as a global reference
+                const catalog = await apiService.getMasterCatalog();
+                setMasterCatalog(catalog);
+                localStorage.setItem('nexus_master_catalog', JSON.stringify(catalog));
+            } catch (e) { /* ignore */ }
 
             // Load Room State
             const lastRoomId = localStorage.getItem('nexus_last_room_id');
@@ -211,16 +213,25 @@ export const useGameLogic = () => {
 
     // --- ACTIONS ---
 
+    const effectiveEmail = (isTestMode && isAdmin) ? TEST_ACCOUNT_EMAIL : (userEmail || 'guest');
+
     const toggleTestMode = () => {
         const newVal = !isTestMode;
         setIsTestMode(newVal);
         localStorage.setItem('nexus_test_mode', String(newVal));
         if (newVal) {
-            setNotification({ id: 'test-mode', message: 'Testovací režim AKTIVNÍ (Editace povolena)', type: 'warning' });
+            setNotification({ id: 'test-mode-' + Date.now(), message: 'Testovací režim AKTIVNÍ (Editace povolena)', type: 'warning' });
         } else {
-            setNotification({ id: 'test-mode', message: 'Testovací režim VYPNUT', type: 'info' });
+            setNotification({ id: 'test-mode-' + Date.now(), message: 'Testovací režim VYPNUT', type: 'info' });
         }
     };
+
+    // NEW: Auto-refresh when toggling Test Mode to ensure correct DB is loaded
+    useEffect(() => {
+        if (userEmail && isAdmin) {
+            handleRefreshDatabase();
+        }
+    }, [isTestMode]);
 
     const addToLog = (msg: string) => {
         setScanLog(prev => [msg, ...prev].slice(0, 50));
@@ -258,19 +269,20 @@ export const useGameLogic = () => {
     const handleRefreshDatabase = async () => {
         setIsRefreshing(true);
         try {
+            // ALWAYS load Master Catalog from Master Admin as a global reference
             const catalog = await apiService.getMasterCatalog();
             setMasterCatalog(catalog);
             localStorage.setItem('nexus_master_catalog', JSON.stringify(catalog));
 
             if (userEmail && !isGuest) {
-                const inv = await apiService.getInventory(userEmail);
+                const inv = await apiService.getInventory(effectiveEmail);
                 setInventory(inv);
             }
-            setNotification({ id: 'refresh-ok', message: 'Databáze a inventář synchronizovány.', type: 'success' });
+            setNotification({ id: 'refresh-ok-' + Date.now(), message: 'Databáze a inventář synchronizovány.', type: 'success' });
             playSound('success');
         } catch (e) {
             console.error(e);
-            setNotification({ id: 'refresh-err', message: 'Chyba synchronizace.', type: 'error' });
+            setNotification({ id: 'refresh-err-' + Date.now(), message: 'Chyba synchronizace.', type: 'error' });
             playSound('error');
         } finally {
             setIsRefreshing(false);
@@ -287,7 +299,7 @@ export const useGameLogic = () => {
             }
 
             if (userEmail && !isGuest) {
-                const saved = await apiService.saveCard(userEmail, eventToSave);
+                const saved = await apiService.saveCard(effectiveEmail, eventToSave);
                 if (isNew) {
                     setInventory(prev => [...prev, saved]);
                 } else {
@@ -327,7 +339,7 @@ export const useGameLogic = () => {
     const handleDeleteEvent = async (cardId: string) => {
         setInventory(prev => prev.filter(i => i.id !== cardId));
         if (userEmail && !isGuest) {
-            try { await apiService.deleteCard(userEmail, cardId); } catch (e) { console.error("Delete failed", e); }
+            try { await apiService.deleteCard(effectiveEmail, cardId); } catch (e) { console.error("Delete failed", e); }
         } else {
             // Guest local storage update handled by useEffect
         }
@@ -607,12 +619,19 @@ export const useGameLogic = () => {
 
                 // Check for turn change
                 const newTurnPlayer = status.turnOrder?.[status.turnIndex];
-                const oldTurnPlayer = roomState.turnOrder?.[roomState.turnIndex];
-                if (status.isGameStarted && newTurnPlayer !== oldTurnPlayer) {
-                    if (newTurnPlayer === roomState.nickname) {
+                const currentTurnIndex = status.turnIndex;
+
+                // Pokud se změnil turnIndex, resetujeme notifikaci
+                if (currentTurnIndex !== prevTurnIndexRef.current) {
+                    hasNotifiedTurnRef.current = false;
+                    prevTurnIndexRef.current = currentTurnIndex;
+
+                    // Pokud je to můj tah, zobrazíme notifikaci
+                    if (status.isGameStarted && newTurnPlayer === roomState.nickname) {
                         setNotification({ id: 'your-turn-' + Date.now(), type: 'warning', message: '⚠️ JSI NA TAHU!' });
                         playSound('open');
                         vibrate([100, 50, 100]);
+                        hasNotifiedTurnRef.current = true;
                     }
                 }
 
@@ -627,15 +646,14 @@ export const useGameLogic = () => {
                     if (!currentEvent || currentEvent.id !== status.activeEncounter.id) {
                         const syncedEvent = getAdjustedItem(status.activeEncounter, isNight, playerClass);
                         setCurrentEvent(syncedEvent);
+                        lastSetEventTimeRef.current = Date.now();
                         playSound('error');
                         vibrate([200, 100, 200]);
                     }
-                } else {
-                    // If server has cleared the encounter, but we are still looking at a GLOBAL one -> Close it
-                    if (currentEvent && currentEvent.dilemmaScope === 'GLOBAL') {
-                        setCurrentEvent(null);
-                    }
                 }
+                // REMOVED: Auto-close logic on null encounter. 
+                // As requested, players should close global cards manually to avoid race conditions and ensure they can react.
+
                 await apiService.updatePlayerStatus(roomState.id, roomState.nickname, playerHpRef.current);
             } catch (e: any) {
                 if (e.message?.includes('404') || e.message?.includes('Sektor nenalezen')) {
@@ -724,10 +742,12 @@ export const useGameLogic = () => {
             setIsAIThinking(false);
             setIsDocking(true);
             setCurrentEvent(adjusted);
+            lastSetEventTimeRef.current = Date.now();
             return;
         }
 
         setCurrentEvent(adjusted);
+        lastSetEventTimeRef.current = Date.now();
 
         // NEW: Broadcast if Global Dilemma
         if (adjusted.type === GameEventType.DILEMA && adjusted.dilemmaScope === 'GLOBAL' && roomState.isInRoom) {

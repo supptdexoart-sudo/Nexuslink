@@ -174,7 +174,7 @@ const App: React.FC = () => {
     });
 
     if (claimedCount > 0) {
-      logic.setNotification({ id: 'loot-claim', type: 'success', message: 'Kořist byla úspěšně připsána.' });
+      logic.setNotification({ id: 'loot-claim-' + Date.now(), type: 'success', message: 'Kořist byla úspěšně připsána.' });
     }
   };
 
@@ -379,9 +379,9 @@ const App: React.FC = () => {
 
       <div className="h-20 bg-zinc-950 border-t-2 border-signal-cyan/40 flex items-center justify-around px-2 pb-2 relative z-50 shadow-[0_-12px_35px_rgba(0,242,255,0.25)]">
         <NavButton active={logic.activeTab === Tab.SCANNER} onClick={() => logic.setActiveTab(Tab.SCANNER)} icon={<Scan />} label="Sken" />
-        <NavButton active={logic.activeTab === Tab.INVENTORY} onClick={() => logic.setActiveTab(Tab.INVENTORY)} icon={<Box />} label={logic.isAdmin ? "Databáze" : "Batoh"} />
+        <NavButton active={logic.activeTab === Tab.INVENTORY} onClick={() => logic.setActiveTab(Tab.INVENTORY)} icon={<Box />} label={(logic.isAdmin && !logic.isTestMode) ? "Databáze" : "Batoh"} />
         <NavButton active={logic.activeTab === Tab.SPACESHIP} onClick={() => logic.setActiveTab(Tab.SPACESHIP)} icon={<Rocket />} label="Loď" />
-        {logic.isAdmin && <NavButton active={logic.activeTab === Tab.GENERATOR} onClick={() => logic.setActiveTab(Tab.GENERATOR)} icon={<Hammer />} label="Fab" />}
+        {(logic.isAdmin && !logic.isTestMode) && <NavButton active={logic.activeTab === Tab.GENERATOR} onClick={() => logic.setActiveTab(Tab.GENERATOR)} icon={<Hammer />} label="Fab" />}
         <NavButton active={logic.activeTab === Tab.ROOM} onClick={() => logic.setActiveTab(Tab.ROOM)} icon={<Users />} label="Tým" />
         <NavButton active={logic.activeTab === Tab.SETTINGS} onClick={() => logic.setActiveTab(Tab.SETTINGS)} icon={<SettingsIcon />} label="Sys" />
       </div>
@@ -399,7 +399,7 @@ const App: React.FC = () => {
             merchant={logic.activeMerchant}
             userGold={logic.playerGold}
             // IMPORTANT: If in Test Mode, look up items in Test Vault. Otherwise use live admin vault.
-            adminEmail={logic.isTestMode ? 'admin_test_vault@nexus.local' : 'zbynekbal97@gmail.com'}
+            adminEmail={logic.isTestMode ? 'test1@nexus.cz' : 'zbynekbal97@gmail.com'}
             inventory={logic.inventory}
             playerClass={logic.playerClass}
             onClose={() => logic.setActiveMerchant(null)}
