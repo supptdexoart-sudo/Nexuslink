@@ -732,8 +732,9 @@ export const useGameLogic = () => {
                     const status = await apiService.getRoomStatus(roomState.id);
                     const messages = await apiService.getRoomMessages(roomState.id);
                     setRoomState(prev => ({
-                        ...prev, members: status.members, turnIndex: status.turnIndex, messages, isGameStarted: status.isGameStarted,
-                        roundNumber: status.roundNumber, turnOrder: status.turnOrder, readyForNextRound: status.readyForNextRound, host: status.host
+                        ...prev, members: status.members, turnOrder: status.turnOrder, turnIndex: status.turnIndex,
+                        messages, isGameStarted: status.isGameStarted, roundNumber: status.roundNumber,
+                        readyForNextRound: status.readyForNextRound, host: status.host
                     }));
                 } catch (e) { }
             };
@@ -748,6 +749,14 @@ export const useGameLogic = () => {
                 const status = await apiService.getRoomStatus(roomState.id);
                 const messages = await apiService.getRoomMessages(roomState.id);
                 prevMembersRef.current = status.members;
+
+                // Check if I was kicked
+                const stillMember = status.members.some((m: any) => m.name === roomState.nickname);
+                if (!stillMember && roomState.isInRoom) {
+                    setNotification({ id: 'kicked', type: 'error', message: '🚫 Byl jsi vyhozen ze sektoru.' });
+                    handleLeaveRoom();
+                    return;
+                }
 
                 if (status.isGameStarted && !hasNotifiedStartRef.current) {
                     setNotification({ id: 'game-start', type: 'success', message: '🚀 MISE ZAHÁJENA! Sektor byl uzamčen.' });
@@ -800,9 +809,23 @@ export const useGameLogic = () => {
                     localStorage.setItem('nexus_is_in_room', 'false');
                 }
             }
-        }, 2000);
+        }, 1500); // Increased polling speed for better team sync
         return () => clearInterval(pollInterval);
     }, [roomState.isInRoom, roomState.id, roomState.nickname, isGuest, isServerReady, currentEvent]);
+
+    const handleKickPlayer = async (targetName: string) => {
+        if (roomState.host !== roomState.nickname) return;
+        try {
+            await apiService.adminAction(roomState.id, targetName, 'kick', null);
+            setNotification({ id: 'kick-ok', type: 'success', message: `${targetName} byl odstraněn.` });
+            playSound('success');
+            // Refresh local state immediately
+            const status = await apiService.getRoomStatus(roomState.id);
+            setRoomState(prev => ({ ...prev, members: status.members, turnOrder: status.turnOrder }));
+        } catch (e) {
+            console.error("Kick failed", e);
+        }
+    };
 
     const handleStartGame = async () => {
         if (roomState.host !== roomState.nickname) return;
@@ -1121,7 +1144,7 @@ export const useGameLogic = () => {
         handleLogout: () => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); },
         handleScanCode,
         handleSaveEvent, handlePlanetProgress,
-        handleDeleteEvent, handleUseEvent, handleRefreshDatabase, handleGameSetup, handleLeaveRoom, handleExitToMenu,
+        handleDeleteEvent, handleUseEvent, handleRefreshDatabase, handleGameSetup, handleLeaveRoom, handleKickPlayer, handleExitToMenu,
         handleResolveDilemma,
         handleEndTurn, handleSendMessage, closeEvent, handleHpChange, handleManaChange, handleGoldChange, handleFuelChange,
         handleOpenInventoryItem: (item: GameEvent) => {

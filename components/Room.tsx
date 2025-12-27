@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Trash2, User, Play, Lock, TrendingUp, Package, X, Search, Handshake, Plus, Hash, Globe, Activity, History, Sword, Wand2, Footprints, Cross } from 'lucide-react';
+import { Send, Trash2, User, UserMinus, Play, Lock, TrendingUp, Package, X, Search, Handshake, Plus, Hash, Globe, Activity, History, Sword, Wand2, Footprints, Cross } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound, vibrate } from '../services/soundService';
 import { GameEvent, PlayerClass, RoomState } from '../types';
@@ -18,6 +18,7 @@ interface RoomProps {
     userEmail?: string;
     playerClass?: PlayerClass | null;
     onToggleReady?: () => void;
+    onKickPlayer?: (name: string) => void;
     activeCharacter?: any | null;
     isNight?: boolean;
 }
@@ -34,7 +35,7 @@ const getClassIcon = (pClass: string) => {
 
 const Room: React.FC<RoomProps> = ({
     roomState, inventory, playerHp, scanLog = [], onExitToMenu, onSendMessage, onStartGame, onInspectItem, onSwapItems, userEmail, playerClass, onToggleReady,
-    activeCharacter, isNight
+    onKickPlayer, activeCharacter, isNight
 }) => {
     const [activeTab, setActiveTab] = useState<'chat' | 'party' | 'trade'>('party');
     const [newMessage, setNewMessage] = useState('');
@@ -286,6 +287,19 @@ const Room: React.FC<RoomProps> = ({
                                                     <div className="flex items-center gap-3">
                                                         {!roomState.isGameStarted && (
                                                             <div className={`w-3 h-3 rounded-full border ${member.isReady ? 'bg-green-500 border-green-400 shadow-[0_0_8px_lime]' : 'bg-transparent border-zinc-600'}`} />
+                                                        )}
+                                                        {isHost && !isMe && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (onKickPlayer) onKickPlayer(member.name);
+                                                                    playSound('error');
+                                                                }}
+                                                                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded border border-red-500/30 transition-colors group/kick"
+                                                                title="Kick player"
+                                                            >
+                                                                <UserMinus className="w-3 h-3 group-hover/kick:scale-110 transition-transform" />
+                                                            </button>
                                                         )}
                                                         <span className={`font-mono font-bold text-xs ${member.hp < 30 ? 'text-red-500' : 'text-green-500'}`}>{member.hp} HP</span>
                                                     </div>

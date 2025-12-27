@@ -369,6 +369,7 @@ const App: React.FC = () => {
                       onExitToMenu={logic.handleExitToMenu} onSendMessage={logic.handleSendMessage} onStartGame={logic.handleStartGame}
                       onInspectItem={logic.handleInspectItem} onSwapItems={logic.handleSwapItems} userEmail={logic.userEmail || undefined}
                       playerClass={logic.playerClass} onToggleReady={logic.handleToggleReady}
+                      onKickPlayer={logic.handleKickPlayer}
                       activeCharacter={logic.activeCharacter}
                       isNight={logic.isNight}
                     />
